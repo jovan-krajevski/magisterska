@@ -1,0 +1,8 @@
+matplotlib~=3.5.2
+pandas~=1.4.2
+pandarallel~=1.6.1
+pymc3~=3.11.5
+scipy~=1.7.3
+theano~=1.0.5
+# Data collection
+yfinance~=0.1.70
