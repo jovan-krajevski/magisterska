@@ -8,8 +8,8 @@ curl https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o mi
 bash miniconda.sh
 
 # create virtual envs
-conda create --name py397 python=3.9.7
-conda activate py397
+conda create --name py310 python=3.10
+conda activate py310
 python -m venv .venv
 source .venv/bin/activate
 
