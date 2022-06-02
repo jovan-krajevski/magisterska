@@ -53,7 +53,6 @@ numpy==1.22.1
     #   pymc3
     #   scipy
     #   statsmodels
-    #   theano
     #   theano-pymc
     #   xarray
     #   xarray-einstats
@@ -103,7 +102,6 @@ scipy==1.7.3
     #   arviz
     #   pymc3
     #   statsmodels
-    #   theano
     #   theano-pymc
     #   xarray-einstats
 semver==2.13.0
@@ -112,13 +110,12 @@ six==1.16.0
     # via
     #   patsy
     #   python-dateutil
-    #   theano
 statsmodels==0.13.2
     # via -r requirements/requirements.in
-theano==1.0.5
-    # via -r requirements/requirements.in
 theano-pymc==1.1.2
-    # via pymc3
+    # via
+    #   -r requirements/requirements.in
+    #   pymc3
 typing-extensions==4.2.0
     # via
     #   arviz

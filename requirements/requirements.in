@@ -4,6 +4,6 @@ pandarallel~=1.6.1
 pymc3~=3.11.5
 scipy~=1.7.3
 statsmodels~=0.13.2
-theano~=1.0.5
+theano-pymc~=1.1.2
 # Data collection
 yfinance~=0.1.70
