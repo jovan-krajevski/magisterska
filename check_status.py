@@ -11,4 +11,4 @@ path = Path(".") / "models" / f"{modelname}.pkl"
 with open(path, "rb") as f:
     stats, model = pickle.load(f)
 
-print(f"Iterations comppleted: {len(stats)}")
+print(f"Iterations completed: {len(stats)}")
