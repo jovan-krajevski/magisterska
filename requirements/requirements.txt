@@ -21,7 +21,9 @@ cftime==1.6.0
 charset-normalizer==2.0.12
     # via requests
 cloudpickle==2.1.0
-    # via pymc
+    # via
+    #   -r requirements/requirements.in
+    #   pymc
 cons==0.4.5
     # via
     #   aesara
