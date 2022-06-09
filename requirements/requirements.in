@@ -1,9 +1,10 @@
 matplotlib~=3.5.2
 pandas~=1.4.2
 pandarallel~=1.6.1
-pymc3~=3.11.5
+pymc~=4.0.0
 scipy~=1.7.3
 statsmodels~=0.13.2
-theano-pymc~=1.1.2
 # Data collection
 yfinance~=0.1.70
+# Dev
+yapf~=0.32.0

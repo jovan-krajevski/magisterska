@@ -20,3 +20,5 @@ sync_deps:  ## Sync deps from requirements to venv
 	pip install cython numpy
 	pip-sync requirements/requirements.txt
 	pip install --upgrade notebook
+	pip install jupyter_contrib_nbextensions
+	jupyter contrib nbextension install --user
