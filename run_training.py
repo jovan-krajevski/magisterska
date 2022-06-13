@@ -1,13 +1,21 @@
 import pickle
 import time
 from pathlib import Path
+from typing import List, Tuple
 
 import aesara
+import aesara.tensor as at
 import cloudpickle
 import numpy as np
 import pandas as pd
 import pymc as pm
 import yfinance
+from aesara.tensor.random.op import RandomVariable
+from pandarallel import pandarallel
+from pymc.aesaraf import floatX, intX
+from pymc.distributions.dist_math import check_parameters
+from pymc.distributions.distribution import Continuous
+from pymc.distributions.shape_utils import rv_size_is_none
 from scipy import stats as ss
 
 indexes = ["^GSPC"]
@@ -336,3 +344,109 @@ def test_model(
 
 test_model("fixed_normal_metropolis.pkl", get_next_normal_model)
 test_model("fixed_laplace_metropolis.pkl", get_next_laplace_model)
+
+
+def get_gennorm_betas(df):
+    return ss.gennorm.fit(df)[0]
+
+
+pandarallel.initialize()
+start_time = time.time()
+x = train_smp["close_log_return"].interpolate()
+betas = x.rolling(250).parallel_apply(get_gennorm_betas)
+end_time = time.time()
+print(f"{end_time - start_time:.2f}s")
+
+prior_beta_mu, prior_beta_std = betas.mean(), betas.std()
+
+
+class GenNormRV(RandomVariable):
+    name: str = "GenNorm"
+    ndim_supp: int = 0
+    ndims_params: List[int] = [0, 0, 0]
+    dtype: str = "floatX"
+    _print_name: Tuple[str, str] = ("GenNorm", "GGD")
+
+    @classmethod
+    def rng_fn(
+        cls,
+        rng: np.random.RandomState,
+        beta: np.ndarray,
+        loc: np.ndarray,
+        scale: np.ndarray,
+        size: Tuple[int, ...],
+    ) -> np.ndarray:
+        return ss.gennorm.rvs(beta, loc, scale, random_state=rng, size=size)
+
+
+class GenNorm(Continuous):
+    rv_op = GenNormRV()
+
+    @classmethod
+    def dist(cls, beta, loc, scale, *args, **kwargs):
+        beta = at.as_tensor_variable(floatX(beta))
+        loc = at.as_tensor_variable(floatX(loc))
+        scale = at.as_tensor_variable(floatX(scale))
+        return super().dist([beta, loc, scale], *args, **kwargs)
+
+    def moment(rv, size, beta, loc, scale):
+        moment, _ = at.broadcast_arrays(beta, loc, scale)
+        if not rv_size_is_none(size):
+            moment = at.full(size, moment)
+        return moment
+
+    def logp(value, beta, loc, scale):
+        return check_parameters(
+            at.log(beta / (2 * scale)) - at.gammaln(1.0 / beta) -
+            (at.abs_(value - loc) / scale)**beta, beta >= 0, scale >= 0)
+
+    def logcdf(value, beta, loc, scale):
+        b = value - loc
+        c = 0.5 * b / at.abs_(b)
+        return (0.5 + c) - c * at.gammaincc(1.0 / beta,
+                                            at.abs_(b / scale)**beta)
+
+
+def get_initial_gennorm_model(data, prior_mu_mean, prior_mu_sigma,
+                              prior_beta_mean, prior_beta_sigma,
+                              prior_std_sigma):
+    beta_testval, loc_testval, scale_testval = ss.gennorm.fit(data.get_value())
+    model = pm.Model()
+    with model:
+        beta = pm.TruncatedNormal("beta",
+                                  mu=prior_beta_mean,
+                                  sigma=prior_beta_sigma,
+                                  lower=0,
+                                  initval=beta_testval)
+        loc = pm.Normal("loc",
+                        mu=prior_mu_mean,
+                        sigma=prior_mu_sigma,
+                        initval=loc_testval)
+        scale = pm.HalfNormal("scale",
+                              sigma=prior_std_sigma,
+                              initval=scale_testval)
+        obs = GenNorm("obs", beta=beta, loc=loc, scale=scale, observed=data)
+
+    return model
+
+
+def get_next_gennorm_model(data, trace, set_testval):
+    beta_testval, loc_testval, scale_testval = ss.gennorm.fit(data.get_value())
+    model = pm.Model()
+    with model:
+        beta = from_posterior("beta", trace["posterior"]["beta"], beta_testval,
+                              set_testval)
+        loc = from_posterior("loc", trace["posterior"]["loc"], loc_testval,
+                             set_testval)
+        scale = from_posterior("scale", trace["posterior"]["scale"],
+                               scale_testval, set_testval)
+        obs = GenNorm("obs", beta=beta, loc=loc, scale=scale, observed=data)
+
+    return model
+
+
+train_model("fixed_gennorm_metropolis.pkl", get_initial_gennorm_model, [
+    prior_mu_mean, prior_mu_sigma, prior_std_sigma, prior_beta_mu,
+    prior_beta_std
+], get_next_gennorm_model)
+test_model("fixed_gennorm_metropolis.pkl", get_next_gennorm_model)
