@@ -33,6 +33,7 @@ print(f"{end_time - start_time:.2f}s")
 train_smp = daily_smp[daily_smp.index < "01-01-2007"].copy()
 test_smp = daily_smp[daily_smp.index >= "01-01-2007"].copy()
 
+
 def transform_close(df):
     df["close"] = df["Adj Close"]
     df["close_return"] = df["close"].pct_change(periods=1)
@@ -43,6 +44,7 @@ def transform_close(df):
 
 transform_close(train_smp)
 transform_close(test_smp)
+
 
 def get_rolling_windows(df, L=250):
     return [df.iloc[x:x + L] for x in range(len(df) - L + 1)]
@@ -55,6 +57,7 @@ test_data = get_rolling_windows(test_smp)
 
 end_time = time.time()
 print(f"{end_time - start_time:.2f}s")
+
 
 def from_posterior(param, samples, testval, set_testval):
     smin, smax = np.min(samples), np.max(samples)
@@ -71,6 +74,7 @@ def from_posterior(param, samples, testval, set_testval):
 
     return pm.distributions.Interpolated(param, x, y)
 
+
 def get_stats(sample):
     return [
         np.mean(sample),
@@ -79,6 +83,7 @@ def get_stats(sample):
         ss.skew(sample),
         ss.kurtosis(sample),
     ] + [np.percentile(sample, p) for p in range(0, 101, 5)]
+
 
 MODEL_LOCATION = Path(".") / "models"
 DATA_LOCATION.mkdir(exist_ok=True, parents=True)
@@ -95,6 +100,7 @@ def read_stats_and_model(model_name):
 def write_stats_and_model(model_name, stats, model):
     with open(MODEL_LOCATION / model_name, "wb") as f:
         cloudpickle.dump((stats, model), f)
+
 
 def get_initial_normal_model(data, prior_mu_mean, prior_mu_sigma,
                              prior_std_sigma):
@@ -123,6 +129,7 @@ def get_next_normal_model(data, trace, set_testval):
 
     return model
 
+
 def get_initial_laplace_model(data, prior_mu_mean, prior_mu_sigma,
                               prior_std_sigma):
     mu_testval, b_testval = ss.laplace.fit(data.get_value())
@@ -142,11 +149,14 @@ def get_next_laplace_model(data, trace, set_testval):
     mu_testval, b_testval = ss.laplace.fit(data.get_value())
     model = pm.Model()
     with model:
-        mu = from_posterior("mu", trace["mu"], mu_testval, set_testval)
-        b = from_posterior("b", trace["b"], b_testval, set_testval)
+        mu = from_posterior("mu", trace["posterior"]["mu"], mu_testval,
+                            set_testval)
+        b = from_posterior("b", trace["posterior"]["b"], b_testval,
+                           set_testval)
         obs = pm.Laplace("obs", mu=mu, b=b, observed=data)
 
     return model
+
 
 start_time = time.time()
 
@@ -160,6 +170,7 @@ prior_std_sigma = np.array(
 end_time = time.time()
 print(f"{end_time - start_time:.2f}s")
 print(prior_mu_mean, prior_mu_sigma, prior_std_sigma)
+
 
 def train_model(
         model_name,
@@ -215,6 +226,7 @@ def train_model(
 
                 with model:
                     trace = pm.sample(draws=draws,
+                                      step=[pm.Metropolis()],
                                       chains=chains,
                                       cores=cores,
                                       progressbar=False)
@@ -235,9 +247,10 @@ def train_model(
                 f.write(str(e))
                 f.write("\n")
 
-train_model("fixed_normal.pkl", get_initial_normal_model,
+
+train_model("fixed_normal_metropolis.pkl", get_initial_normal_model,
             [prior_mu_mean, prior_mu_sigma, prior_std_sigma],
             get_next_normal_model)
-train_model("fixed_laplace.pkl", get_initial_laplace_model,
+train_model("fixed_laplace_metropolis.pkl", get_initial_laplace_model,
             [prior_mu_mean, prior_mu_sigma, prior_std_sigma],
             get_next_laplace_model)
