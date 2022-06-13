@@ -1,9 +1,0 @@
-'obs'
-'obs'
-'obs'
-'obs'
-fixed_normal.pkl_9300 - Failed set_testval
-Initial evaluation of model at starting point failed!
-Starting values:
-{'mu_interval__': array(nan), 'std_interval__': array(nan)}
-
