@@ -1,0 +1,193 @@
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+name 'Gennorm' is not defined
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+name 'Gennorm' is not defined
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+name 'Gennorm' is not defined
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+name 'Gennorm' is not defined
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
+fixed_normal_metropolis_test.pkl_60 - Failed set_testval
+Initial evaluation of model at starting point failed!
+Starting values:
+{'mu_interval__': array(nan), 'std_interval__': array(nan)}
+
+Initial evaluation results:
+{'mu': nan, 'std': nan, 'obs': -inf}
