@@ -254,3 +254,85 @@ train_model("fixed_normal_metropolis.pkl", get_initial_normal_model,
 train_model("fixed_laplace_metropolis.pkl", get_initial_laplace_model,
             [prior_mu_mean, prior_mu_sigma, prior_std_sigma],
             get_next_laplace_model)
+
+
+def test_model(
+        train_model_name,
+        get_next_model_func,
+        update_priors_on=60,  # update priors after 60 windows
+        save_every=10,  # save model after 10 windows
+        verbosity=10,  # print info about progress after 10 windows
+        draws=1000,
+        chains=4,
+        cores=4):
+    success = False
+    while not success:
+        try:
+            [file_name, file_extenstion] = train_model_name.split('.')
+            test_model_name = f"{file_name}_test.{file_extenstion}"
+            data_sample = aesara.shared(
+                test_data[0]["close_log_return"].to_numpy())
+
+            train_stats, train_model = read_stats_and_model(train_model_name)
+            test_stats, test_model = read_stats_and_model(test_model_name)
+            trace = None
+
+            if not test_model:
+                test_model = train_model
+
+            if len(test_stats) and len(test_stats) % update_priors_on == 0:
+                # recalculate last window so that we have trace
+                test_stats = test_stats[:-1]
+
+            for idx, window in enumerate(test_data):
+                if idx % verbosity == 0:
+                    print(
+                        f"Window {idx + 1}/{len(test_data)} ({(idx + 1)/len(test_data)*100:.2f}%)..."
+                    )
+
+                if idx < len(test_stats):
+                    continue  # window is already processed
+
+                data_sample.set_value(window["close_log_return"].to_numpy())
+
+                if idx % update_priors_on == 0 and idx > 0:
+                    next_model = get_next_model_func(data_sample, trace, True)
+                    if not np.isnan(
+                            np.array(list(
+                                next_model.point_logps().values()))).any():
+                        test_model = next_model
+                    else:
+                        with open("logs.txt", "a") as f:
+                            f.write(
+                                f"{test_model_name}_{idx} - Failed set_testval\n"
+                            )
+
+                        test_model = get_next_model_func(
+                            data_sample, trace, False)
+
+                with test_model:
+                    trace = pm.sample(draws=draws,
+                                      step=[pm.Metropolis()],
+                                      chains=chains,
+                                      cores=cores,
+                                      progressbar=False)
+                    posterior_obs = pm.sample_posterior_predictive(
+                        trace, progressbar=False)
+
+                test_stats.append(
+                    get_stats(
+                        posterior_obs["observed_data"]["obs"].data.flatten()))
+                if idx % save_every == 0:
+                    write_stats_and_model(test_model_name, test_stats,
+                                          test_model)
+
+            write_stats_and_model(test_model_name, test_stats, test_model)
+            success = True
+        except Exception as e:
+            with open("logs.txt", "a") as f:
+                f.write(str(e))
+                f.write("\n")
+
+
+test_model("fixed_normal_metropolis.pkl", get_next_normal_model)
+test_model("fixed_laplace_metropolis.pkl", get_next_laplace_model)
