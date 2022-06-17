@@ -1,7 +1,6 @@
 import pickle
 import time
 from pathlib import Path
-from typing import List, Tuple
 
 import aesara
 import aesara.tensor as at
@@ -10,65 +9,10 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import yfinance
-from aesara.tensor.random.op import RandomVariable
 from pandarallel import pandarallel
-from pymc.aesaraf import floatX
-from pymc.distributions.dist_math import check_parameters
-from pymc.distributions.distribution import Continuous
-from pymc.distributions.shape_utils import rv_size_is_none
 from scipy import stats as ss
 
-
-class GenNormRV(RandomVariable):
-    name: str = "GenNorm"
-    ndim_supp: int = 0
-    ndims_params: List[int] = [0, 0, 0]
-    dtype: str = "floatX"
-    _print_name: Tuple[str, str] = ("GenNorm", "GGD")
-
-    @classmethod
-    def rng_fn(
-        cls,
-        rng: np.random.RandomState,
-        beta: np.ndarray,
-        loc: np.ndarray,
-        scale: np.ndarray,
-        size: Tuple[int, ...],
-    ) -> np.ndarray:
-        return ss.gennorm.rvs(beta, loc, scale, random_state=rng, size=size)
-
-
-gennormrv = GenNormRV()
-
-
-class GenNorm(Continuous):
-    rv_op = gennormrv
-
-    @classmethod
-    def dist(cls, beta, loc, scale, *args, **kwargs):
-        beta = at.as_tensor_variable(floatX(beta))
-        loc = at.as_tensor_variable(floatX(loc))
-        scale = at.as_tensor_variable(floatX(scale))
-        return super().dist([beta, loc, scale], *args, **kwargs)
-
-    def moment(rv, size, beta, loc, scale):
-        moment, _ = at.broadcast_arrays(beta, loc, scale)
-        if not rv_size_is_none(size):
-            moment = at.full(size, moment)
-        return moment
-
-    def logp(value, beta, loc, scale):
-        print(beta, loc, scale)
-        return check_parameters(
-            at.log(beta / (2 * scale)) - at.gammaln(1.0 / beta) -
-            (at.abs_(value - loc) / scale)**beta, beta >= 0, scale >= 0)
-
-    def logcdf(value, beta, loc, scale):
-        b = value - loc
-        c = 0.5 * b / at.abs_(b)
-        return (0.5 + c) - c * at.gammaincc(1.0 / beta,
-                                            at.abs_(b / scale)**beta)
-
+from gennorm_distribution import GenNorm
 
 indexes = ["^GSPC"]
 
@@ -142,7 +86,7 @@ def get_stats(sample):
         np.mean(sample > 0),
         ss.skew(sample),
         ss.kurtosis(sample),
-    ] + [np.percentile(sample, p) for p in range(0, 101, 5)]
+    ] + [np.percentile(sample, p) for p in range(0, 101, 1)]
 
 
 MODEL_LOCATION = Path(".") / "models"
@@ -424,14 +368,14 @@ def test_model(
                 f.write("\n")
 
 
-train_model("fixed_normal_metropolis.pkl", get_initial_normal_model,
-            [prior_mu_mean, prior_mu_sigma, prior_std_sigma],
-            get_next_normal_model)
-train_model("fixed_laplace_metropolis.pkl", get_initial_laplace_model,
+# train_model("fixed_normal_metropolis_100.pkl", get_initial_normal_model,
+#             [prior_mu_mean, prior_mu_sigma, prior_std_sigma],
+#             get_next_normal_model)
+train_model("fixed_laplace_metropolis_100.pkl", get_initial_laplace_model,
             [prior_mu_mean, prior_mu_sigma, prior_std_sigma],
             get_next_laplace_model)
-test_model("fixed_normal_metropolis.pkl", get_next_normal_model)
-test_model("fixed_laplace_metropolis.pkl", get_next_laplace_model)
+# test_model("fixed_normal_metropolis_100.pkl", get_next_normal_model)
+test_model("fixed_laplace_metropolis_100.pkl", get_next_laplace_model)
 
 
 def get_gennorm_betas(df):
@@ -447,8 +391,8 @@ print(f"{end_time - start_time:.2f}s")
 
 prior_beta_mean, prior_beta_sigma = betas.mean(), betas.std()
 
-train_model("fixed_gennorm_metropolis.pkl", get_initial_gennorm_model, [
+train_model("fixed_gennorm_metropolis_100.pkl", get_initial_gennorm_model, [
     prior_mu_mean, prior_mu_sigma, prior_std_sigma, prior_beta_mean,
     prior_beta_sigma
 ], get_next_gennorm_model)
-test_model("fixed_gennorm_metropolis.pkl", get_next_gennorm_model)
+test_model("fixed_gennorm_metropolis_100.pkl", get_next_gennorm_model)
