@@ -63,7 +63,7 @@ end_time = time.time()
 print(f"{end_time - start_time:.2f}s")
 
 
-def from_posterior(param, samples, testval, set_testval):
+def from_posterior(param, samples, testval, set_testval, width_mul):
     smin, smax = np.min(samples), np.max(samples)
     width = smax - smin
     x = np.linspace(smin, smax, 100)
@@ -71,7 +71,8 @@ def from_posterior(param, samples, testval, set_testval):
 
     # what was never sampled should have a small probability but not 0,
     # so we'll extend the domain and use linear approximation of density on it
-    x = np.concatenate([[x[0] - 3 * width], x, [x[-1] + 3 * width]])
+    x = np.concatenate([[x[0] - width_mul * width], x,
+                        [x[-1] + width_mul * width]])
     y = np.concatenate([[0], y, [0]])
     if set_testval:
         return pm.distributions.Interpolated(param, x, y, initval=testval)
@@ -86,7 +87,7 @@ def get_stats(sample):
         np.mean(sample > 0),
         ss.skew(sample),
         ss.kurtosis(sample),
-    ] + [np.percentile(sample, p) for p in range(0, 101, 1)]
+    ] + [np.percentile(sample, p) for p in range(0, 101, 5)]
 
 
 MODEL_LOCATION = Path(".") / "models"
@@ -121,14 +122,14 @@ def get_initial_normal_model(data, prior_mu_mean, prior_mu_sigma,
     return model
 
 
-def get_next_normal_model(data, trace, set_testval):
+def get_next_normal_model(data, trace, set_testval, width_mul=3):
     mu_testval, std_testval = ss.norm.fit(data.get_value())
     model = pm.Model()
     with model:
         mu = from_posterior("mu", trace["posterior"]["mu"], mu_testval,
-                            set_testval)
+                            set_testval, width_mul)
         std = from_posterior("std", trace["posterior"]["std"], std_testval,
-                             set_testval)
+                             set_testval, width_mul)
         obs = pm.Normal("obs", mu=mu, sigma=std, observed=data)
 
     return model
@@ -149,14 +150,14 @@ def get_initial_laplace_model(data, prior_mu_mean, prior_mu_sigma,
     return model
 
 
-def get_next_laplace_model(data, trace, set_testval):
+def get_next_laplace_model(data, trace, set_testval, width_mul=3):
     mu_testval, b_testval = ss.laplace.fit(data.get_value())
     model = pm.Model()
     with model:
         mu = from_posterior("mu", trace["posterior"]["mu"], mu_testval,
-                            set_testval)
+                            set_testval, width_mul)
         b = from_posterior("b", trace["posterior"]["b"], b_testval,
-                           set_testval)
+                           set_testval, width_mul)
         obs = pm.Laplace("obs", mu=mu, b=b, observed=data)
 
     return model
@@ -185,16 +186,16 @@ def get_initial_gennorm_model(data, prior_mu_mean, prior_mu_sigma,
     return model
 
 
-def get_next_gennorm_model(data, trace, set_testval):
+def get_next_gennorm_model(data, trace, set_testval, width_mul=3):
     beta_testval, loc_testval, scale_testval = ss.gennorm.fit(data.get_value())
     model = pm.Model()
     with model:
         beta = from_posterior("beta", trace["posterior"]["beta"], beta_testval,
-                              set_testval)
+                              set_testval, width_mul)
         loc = from_posterior("loc", trace["posterior"]["loc"], loc_testval,
-                             set_testval)
+                             set_testval, width_mul)
         scale = from_posterior("scale", trace["posterior"]["scale"],
-                               scale_testval, set_testval)
+                               scale_testval, set_testval, width_mul)
         obs = GenNorm("obs", beta=beta, loc=loc, scale=scale, observed=data)
 
     return model
@@ -262,9 +263,27 @@ def train_model(
                     else:
                         with open("logs.txt", "a") as f:
                             f.write(
-                                f"{model_name}_{idx} - Failed set_testval\n")
+                                f"{model_name}_{idx} - Failed set_testval with True\n"
+                            )
 
-                        model = get_next_model_func(data_sample, trace, False)
+                        next_model = get_next_model_func(
+                            data_sample, trace, False)
+
+                        if not np.isnan(
+                                np.array(
+                                    list(next_model.point_logps().values()))
+                        ).any():
+                            model = next_model
+                        else:
+                            with open("logs.txt", "a") as f:
+                                f.write(
+                                    f"{model_name}_{idx} - Failed set_testval with False\n"
+                                )
+
+                            model = get_next_model_func(data_sample,
+                                                        trace,
+                                                        True,
+                                                        width_mul=6)
 
                 with model:
                     trace = pm.sample(draws=draws,
@@ -338,11 +357,27 @@ def test_model(
                     else:
                         with open("logs.txt", "a") as f:
                             f.write(
-                                f"{test_model_name}_{idx} - Failed set_testval\n"
+                                f"{test_model_name}_{idx} - Failed set_testval with True\n"
                             )
 
-                        test_model = get_next_model_func(
+                        next_model = get_next_model_func(
                             data_sample, trace, False)
+
+                        if not np.isnan(
+                                np.array(
+                                    list(next_model.point_logps().values()))
+                        ).any():
+                            test_model = next_model
+                        else:
+                            with open("logs.txt", "a") as f:
+                                f.write(
+                                    f"{test_model_name}_{idx} - Failed set_testval with False\n"
+                                )
+
+                            test_model = get_next_model_func(data_sample,
+                                                             trace,
+                                                             True,
+                                                             width_mul=6)
 
                 with test_model:
                     trace = pm.sample(draws=draws,
@@ -371,11 +406,11 @@ def test_model(
 # train_model("fixed_normal_metropolis_100.pkl", get_initial_normal_model,
 #             [prior_mu_mean, prior_mu_sigma, prior_std_sigma],
 #             get_next_normal_model)
-train_model("fixed_laplace_metropolis_100.pkl", get_initial_laplace_model,
-            [prior_mu_mean, prior_mu_sigma, prior_std_sigma],
-            get_next_laplace_model)
+# train_model("fixed_laplace_metropolis_100.pkl", get_initial_laplace_model,
+#             [prior_mu_mean, prior_mu_sigma, prior_std_sigma],
+#             get_next_laplace_model)
 # test_model("fixed_normal_metropolis_100.pkl", get_next_normal_model)
-test_model("fixed_laplace_metropolis_100.pkl", get_next_laplace_model)
+# test_model("fixed_laplace_metropolis_100.pkl", get_next_laplace_model)
 
 
 def get_gennorm_betas(df):
@@ -391,8 +426,8 @@ print(f"{end_time - start_time:.2f}s")
 
 prior_beta_mean, prior_beta_sigma = betas.mean(), betas.std()
 
-train_model("fixed_gennorm_metropolis_100.pkl", get_initial_gennorm_model, [
+train_model("fixed_gennorm_metropolis.pkl", get_initial_gennorm_model, [
     prior_mu_mean, prior_mu_sigma, prior_std_sigma, prior_beta_mean,
     prior_beta_sigma
 ], get_next_gennorm_model)
-test_model("fixed_gennorm_metropolis_100.pkl", get_next_gennorm_model)
+test_model("fixed_gennorm_metropolis.pkl", get_next_gennorm_model)

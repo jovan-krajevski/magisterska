@@ -49,7 +49,6 @@ class GenNorm(Continuous):
         return moment
 
     def logp(value, beta, loc, scale):
-        print(beta, loc, scale)
         return check_parameters(
             at.log(beta / (2 * scale)) - at.gammaln(1.0 / beta) -
             (at.abs_(value - loc) / scale)**beta, beta >= 0, scale >= 0)
