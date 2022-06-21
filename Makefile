@@ -18,6 +18,7 @@ sync_deps:  ## Sync deps from requirements to venv
 	pip install --upgrade pip
 	pip install --upgrade setuptools wheel pip-tools
 	pip install cython numpy
+	pip install pystan==2.19.1.1
 	pip-sync requirements/requirements.txt
 	pip install --upgrade notebook
 	pip install jupyter_contrib_nbextensions
