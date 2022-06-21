@@ -91,7 +91,7 @@ def get_stats(sample):
 
 
 MODEL_LOCATION = Path(".") / "models"
-DATA_LOCATION.mkdir(exist_ok=True, parents=True)
+MODEL_LOCATION.mkdir(exist_ok=True, parents=True)
 
 
 def read_stats_and_model(model_name):
