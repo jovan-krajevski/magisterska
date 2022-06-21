@@ -61,6 +61,8 @@ holidays==0.14.2
     # via prophet
 idna==3.3
     # via requests
+joblib==1.1.0
+    # via scikit-learn
 kiwisolver==1.4.3
     # via matplotlib
 korean-lunar-calendar==0.2.1
@@ -104,6 +106,7 @@ numpy==1.22.4
     #   prophet
     #   pymc
     #   pystan
+    #   scikit-learn
     #   scipy
     #   statsmodels
     #   xarray
@@ -158,6 +161,8 @@ pytz==2022.1
     #   pandas
 requests==2.28.0
     # via yfinance
+scikit-learn==1.1.1
+    # via -r requirements/requirements.in
 scipy==1.7.3
     # via
     #   -r requirements/requirements.in
@@ -165,6 +170,7 @@ scipy==1.7.3
     #   aesara
     #   arviz
     #   pymc
+    #   scikit-learn
     #   statsmodels
     #   xarray-einstats
 setuptools-git==1.2
@@ -176,6 +182,8 @@ six==1.16.0
     #   python-dateutil
 statsmodels==0.13.2
     # via -r requirements/requirements.in
+threadpoolctl==3.1.0
+    # via scikit-learn
 toolz==0.11.2
     # via
     #   logical-unification
