@@ -1,0 +1,21 @@
+[project]
+name = "thesis"
+version = "0.1.0"
+description = ""
+authors = [{ name = "Jovan Krajevski", email = "jovan.krajevski@gmail.com" }]
+classifiers = ["Private :: Do Not Upload"]
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+ "pandas~=2.2.0",
+ "jupyter~=1.0.0",
+]
+
+[tool.setuptools]
+py-modules = []
+
+[tool.pip-tools]
+generate-hashes = true
+# TODO(deps): Can remove this once they become defaults in next major version
+allow-unsafe = true
+strip-extras = true
