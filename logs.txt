@@ -1,1 +1,0 @@
-Logprob method not implemented for GenNorm_rv{0, (0, 0, 0), floatX, False}
