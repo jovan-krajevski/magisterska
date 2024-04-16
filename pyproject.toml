@@ -9,6 +9,14 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
  "pandas~=2.2.0",
  "jupyter~=1.0.0",
+ "matplotlib~=3.8.4",
+ "prophet==1.1.5",
+ "pymc~=5.13.1",
+ "scikit-learn~=1.4.2",
+ "scipy~=1.13.0",
+ "statsmodels~=0.14.1",
+ "yfinance~=0.2.37",
+ "cloudpickle~=3.0.0",
 ]
 
 [tool.setuptools]
