@@ -2,7 +2,7 @@
 
 ## Dev requirements
 
-Development is best done on Ubuntu 22.04.
+Development is best done on Ubuntu 24.04.
 It's best to use a new separate VM to avoid issues.
 
 On Windows you can use WSL:
