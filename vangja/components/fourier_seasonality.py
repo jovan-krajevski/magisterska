@@ -126,14 +126,23 @@ class FourierSeasonality(TimeSeriesModel):
             beta_initval = np.array([[beta_initval] * 2 * self.series_order] * n_groups)
 
         with model:
+            beta_key = (
+                f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
+            )
+            beta_mu = (
+                prev["map_approx"][beta_key]
+                if prev["trace"] is None
+                else prev["trace"][beta_key].to_numpy()[:, :, group].mean(0)
+            )
+            beta_sd = (
+                self.beta_sd / 1000
+                if prev["trace"] is None
+                else prev["trace"][beta_key].to_numpy()[:, :, group].std(0)
+            )
             beta = pm.Normal(
-                f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})",
-                mu=pt.as_tensor_variable(
-                    prev[
-                        f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
-                    ]
-                ),
-                sigma=self.beta_sd / 1000,
+                beta_key,
+                mu=pt.as_tensor_variable(beta_mu),
+                sigma=pt.as_tensor_variable(beta_sd),
                 shape=(n_groups, 2 * self.series_order),
                 initval=beta_initval,
             )

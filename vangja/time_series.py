@@ -98,7 +98,11 @@ class TimeSeriesModel:
         self.model = pm.Model()
         self.model_idxs = {}
         mu = self._tune(
-            self.model, self.data, self.initvals, self.model_idxs, self.map_approx
+            self.model,
+            self.data,
+            self.initvals,
+            self.model_idxs,
+            {"map_approx": self.map_approx, "trace": self.trace},
         )
 
         with self.model:
