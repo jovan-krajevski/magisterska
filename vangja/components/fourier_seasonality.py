@@ -132,12 +132,12 @@ class FourierSeasonality(TimeSeriesModel):
             beta_mu = (
                 prev["map_approx"][beta_key]
                 if prev["trace"] is None
-                else prev["trace"][beta_key].to_numpy()[:, :, group].mean(0)
+                else prev["trace"]["posterior"][beta_key].to_numpy().mean(axis=(1, 0))
             )
             beta_sd = (
-                self.beta_sd / 1000
+                self.beta_sd
                 if prev["trace"] is None
-                else prev["trace"][beta_key].to_numpy()[:, :, group].std(0)
+                else prev["trace"]["posterior"][beta_key].to_numpy().std(axis=(1, 0))
             )
             beta = pm.Normal(
                 beta_key,
