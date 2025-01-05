@@ -9,8 +9,8 @@ sudo apt update
 
 # Install runtime dependencies
 sudo apt install -y --no-install-recommends \
-  python3.12 \
-  python3.12-venv
+  python3.13 \
+  python3.13-venv
 
 # Install dev dependencies
 sudo apt install -y --no-install-recommends \

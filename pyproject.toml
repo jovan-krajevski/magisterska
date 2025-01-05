@@ -5,18 +5,19 @@ description = ""
 authors = [{ name = "Jovan Krajevski", email = "jovan.krajevski@gmail.com" }]
 classifiers = ["Private :: Do Not Upload"]
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
- "pandas~=2.2.0",
- "jupyter~=1.0.0",
- "matplotlib~=3.8.4",
- "prophet==1.1.5",
- "pymc~=5.13.1",
- "scikit-learn~=1.4.2",
- "scipy~=1.13.0",
- "statsmodels~=0.14.1",
- "yfinance~=0.2.37",
- "cloudpickle~=3.0.0",
+ "numpy<2.0.0",
+ "pandas~=2.2.3",
+ "jupyter~=1.1.1",
+ "matplotlib~=3.9.2",
+ "prophet==1.1.6",
+ "pymc~=5.18.2",
+ "scikit-learn~=1.5.2",
+ "scipy~=1.14.1",
+ "statsmodels~=0.14.4",
+ "yfinance~=0.2.50",
+ "cloudpickle~=3.1.0",
 ]
 
 [tool.setuptools]
