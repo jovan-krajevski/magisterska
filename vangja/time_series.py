@@ -76,6 +76,8 @@ class TimeSeriesModel:
             else:
                 self.trace = pm.sample(self.mcmc_samples, chains=chains, cores=cores)
 
+            self.fit_params = {"map_approx": self.map_approx, "trace": self.trace}
+
     def tune(
         self,
         data,
@@ -98,11 +100,7 @@ class TimeSeriesModel:
         self.model = pm.Model()
         self.model_idxs = {}
         mu = self._tune(
-            self.model,
-            self.data,
-            self.initvals,
-            self.model_idxs,
-            {"map_approx": self.map_approx, "trace": self.trace},
+            self.model, self.data, self.initvals, self.model_idxs, self.fit_params
         )
 
         with self.model:
