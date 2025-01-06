@@ -1,3 +1,6 @@
+from pathlib import Path
+from typing import Literal
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -13,7 +16,12 @@ from vangja.utils import get_group_definition
 
 
 class TimeSeriesModel:
-    def _scale_data(self):
+    def _scale_data(self, use_prev_ds_stats: bool = False):
+        if use_prev_ds_stats:
+            self.data["prev_t"] = (self.data["ds"] - self.ds_min) / (
+                self.ds_max - self.ds_min
+            )
+
         self.y_min = 0
         self.y_max = self.data["y"].abs().max()
         self.ds_min = self.data["ds"].min()
@@ -22,10 +30,10 @@ class TimeSeriesModel:
         self.data["y"] = self.data["y"] / self.y_max
         self.data["t"] = (self.data["ds"] - self.ds_min) / (self.ds_max - self.ds_min)
 
-    def _process_data(self):
+    def _process_data(self, use_prev_ds_stats: bool = False):
         self.data["ds"] = pd.to_datetime(self.data["ds"])
         self.data.sort_values("ds", inplace=True)
-        self._scale_data()
+        self._scale_data(use_prev_ds_stats)
 
     def _model_init(self):
         i0, i1 = self.data["ds"].idxmin(), self.data["ds"].idxmax()
@@ -49,6 +57,7 @@ class TimeSeriesModel:
         cores=4,
         use_prophet_initvals=True,
         progressbar=True,
+        nuts_sampler: Literal["pymc", "nutpie", "numpyro", "blackjax"] = "pymc",
     ):
         self.mcmc_samples = mcmc_samples
 
@@ -74,7 +83,12 @@ class TimeSeriesModel:
             if self.mcmc_samples == 0:
                 self.map_approx = pm.find_MAP(progressbar=progressbar, maxeval=1e4)
             else:
-                self.trace = pm.sample(self.mcmc_samples, chains=chains, cores=cores)
+                self.trace = pm.sample(
+                    self.mcmc_samples,
+                    chains=chains,
+                    cores=cores,
+                    nuts_sampler=nuts_sampler,
+                )
 
             self.fit_params = {"map_approx": self.map_approx, "trace": self.trace}
 
@@ -87,11 +101,12 @@ class TimeSeriesModel:
         cores=4,
         use_prophet_initvals=True,
         progressbar=True,
+        nuts_sampler: Literal["pymc", "nutpie", "numpyro", "blackjax"] = "pymc",
     ):
         self.mcmc_samples = mcmc_samples
 
         self.data = data.reset_index(drop=True)
-        self._process_data()
+        self._process_data(use_prev_ds_stats=True)
 
         self.initvals = {}
         if use_prophet_initvals:
@@ -114,7 +129,12 @@ class TimeSeriesModel:
             if self.mcmc_samples == 0:
                 self.map_approx = pm.find_MAP(progressbar=progressbar, maxeval=1e4)
             else:
-                self.trace = pm.sample(self.mcmc_samples, chains=chains, cores=cores)
+                self.trace = pm.sample(
+                    self.mcmc_samples,
+                    chains=chains,
+                    cores=cores,
+                    nuts_sampler=nuts_sampler,
+                )
 
     def _make_future_df(self, days):
         future = pd.DataFrame(

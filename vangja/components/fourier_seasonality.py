@@ -68,12 +68,6 @@ class FourierSeasonality(TimeSeriesModel):
 
         with model:
             if self.pool_type == "partial":
-                # shift_t = pm.Uniform(
-                #     f"fs_{self.model_idx} - shift_t(p={self.period},n={self.series_order})",
-                #     lower=0,
-                #     upper=self.period,
-                #     shape=n_groups,
-                # )
                 mu_beta = pm.Normal(
                     f"fs_{self.model_idx} - beta_mu(p={self.period},n={self.series_order})",
                     mu=self.beta_mean,

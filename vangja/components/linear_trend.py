@@ -162,7 +162,119 @@ class LinearTrend(TimeSeriesModel):
         return trend
 
     def _tune(self, model, data, initvals, model_idxs, prev):
-        return self.definition(model, data, initvals, model_idxs)
+        if not self.allow_tune:
+            return self.definition(model, data, initvals, model_idxs)
+
+        model_idxs["lt"] = model_idxs.get("lt", 0)
+        self.model_idx = model_idxs["lt"]
+        model_idxs["lt"] += 1
+
+        self.group, self.n_groups, self.groups_ = get_group_definition(
+            data, self.pool_cols, self.pool_type
+        )
+
+        slope_mu, intercept_mu = self._get_slope_mus_and_intercept_mus(data, prev)
+
+        slope_initval = initvals.get("slope", None)
+        if slope_initval is not None:
+            slope_initval = np.array([slope_initval] * self.n_groups)
+
+        delta_initval = initvals.get("delta", None)
+        if delta_initval is not None:
+            delta_initval = np.array(
+                [[delta_initval] * self.n_changepoints] * self.n_groups
+            )
+
+        intercept_initval = initvals.get("intercept", None)
+        if intercept_initval is not None:
+            intercept_initval = np.array([intercept_initval] * self.n_groups)
+
+        with model:
+            slope = pm.Normal(
+                f"lt_{self.model_idx} - slope",
+                slope_mu,
+                self.slope_sd,
+                initval=slope_initval,
+                shape=self.n_groups,
+            )
+
+            delta_sd = self.delta_sd
+            if self.delta_sd is None:
+                delta_sd = pm.Exponential(f"lt_{self.model_idx} - tau", 1.5)
+
+            delta = pm.Laplace(
+                f"lt_{self.model_idx} - delta",
+                self.delta_mean,
+                delta_sd,
+                initval=delta_initval,
+                shape=(self.n_groups, self.n_changepoints),
+            )
+
+            intercept = pm.Normal(
+                f"lt_{self.model_idx} - intercept",
+                intercept_mu,
+                self.intercept_sd,
+                initval=intercept_initval,
+                shape=self.n_groups,
+            )
+
+            t = np.array(data["t"])
+            hist_size = int(np.floor(data.shape[0] * self.changepoint_range))
+            cp_indexes = (
+                np.linspace(0, hist_size - 1, self.n_changepoints + 1)
+                .round()
+                .astype(int)
+            )
+            self.s = np.array(data.iloc[cp_indexes]["t"].tail(-1))
+            A = (t[:, None] > self.s) * 1
+
+            gamma = -self.s * delta[self.group, :]
+            trend = pm.Deterministic(
+                f"lt_{self.model_idx} - trend",
+                (slope[self.group] + pm.math.sum(A * delta[self.group], axis=1)) * t
+                + (intercept[self.group] + pm.math.sum(A * gamma, axis=1)),
+            )
+
+        return trend
+
+    def _get_slope_mus_and_intercept_mus(self, data, prev):
+        if self.pool_type != "individual":
+            new_A = (np.array(data["prev_t"][:1])[:, None] > self.s) * 1
+
+        slope_mus = []
+        intercept_mus = []
+        for group_code in self.groups_.keys():
+            if self.pool_type == "individual":
+                s = self.s[group_code]
+                new_A = (np.array(data["prev_t"][:1])[:, None] > self.s[group_code]) * 1
+            else:
+                s = self.s
+
+            slope_mus.append(
+                (
+                    prev["map_approx"][f"lt_{self.model_idx} - slope"][group_code]
+                    + np.dot(
+                        new_A,
+                        prev["map_approx"][f"lt_{self.model_idx} - delta"][group_code],
+                    )
+                )[0]
+            )
+            intercept_mus.append(
+                (
+                    prev["map_approx"][f"lt_{self.model_idx} - intercept"][group_code]
+                    + np.dot(
+                        new_A,
+                        (
+                            -s
+                            * prev["map_approx"][f"lt_{self.model_idx} - delta"][
+                                group_code
+                            ]
+                        ),
+                    )
+                )[0]
+            )
+
+        return slope_mus, intercept_mus
 
     def _predict_map(self, future, map_approx):
         forecasts = []
