@@ -1,3 +1,5 @@
+from typing import Literal
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
@@ -18,6 +20,7 @@ class FourierSeasonality(TimeSeriesModel):
         pool_cols=None,
         pool_type="complete",
         allow_tune=False,
+        tune_method: Literal["same", "simple", "linear", "scaled_linear"] = "same",
     ):
         self.period = period
         self.series_order = series_order
@@ -28,6 +31,7 @@ class FourierSeasonality(TimeSeriesModel):
         self.pool_cols = pool_cols
         self.pool_type = pool_type
         self.allow_tune = allow_tune
+        self.tune_method = tune_method
 
     def _fourier_series(self, data):
         # convert to days since epoch
@@ -133,48 +137,43 @@ class FourierSeasonality(TimeSeriesModel):
                 if prev["trace"] is None
                 else prev["trace"]["posterior"][beta_key].to_numpy().std(axis=(1, 0))
             )
-            beta = pm.Normal(
-                beta_key,
-                mu=pt.as_tensor_variable(beta_mu),
-                sigma=pt.as_tensor_variable(beta_sd),
-                shape=(n_groups, 2 * self.series_order),
-                initval=beta_initval,
-            )
-            # sigma_beta = pm.Normal(
-            #     f"fs_{self.model_idx} - beta_sigma(p={self.period},n={self.series_order})",
-            #     mu=0,
-            #     sigma=self.beta_sd,
-            #     shape=2 * self.series_order,
-            # )
-            # beta = pm.Deterministic(
-            #     f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})",
-            #     pt.as_tensor_variable(
-            #         prev[
-            #             f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
-            #         ]
-            #     ),
-            # )
-            # sigma_beta = pm.HalfNormal(
-            #     f"fs_{self.model_idx} - beta_sigma(p={self.period},n={self.series_order})",
-            #     sigma=self.beta_sd,
-            #     shape=2 * self.series_order,
-            # )
-            # offset_beta = pm.Normal(
-            #     f"fs_{self.model_idx} - offset_beta(p={self.period},n={self.series_order})",
-            #     mu=0,
-            #     sigma=0.01,
-            #     shape=(n_groups, 2 * self.series_order),
-            # )
 
-            # beta = pm.Deterministic(
-            #     f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})",
-            #     prev[
-            #         f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
-            #     ]
-            #     + offset_beta,
-            # )
+            if self.tune_method == "simple":
+                beta = pm.Normal(
+                    beta_key,
+                    mu=pt.as_tensor_variable(beta_mu),
+                    sigma=pt.as_tensor_variable(beta_sd),
+                    shape=(n_groups, 2 * self.series_order),
+                    initval=beta_initval,
+                )
 
-        # beta = prev[f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"]
+            if self.tune_method == "linear":
+                sigma_beta = pm.Normal(
+                    f"fs_{self.model_idx} - beta_sigma(p={self.period},n={self.series_order})",
+                    mu=0,
+                    sigma=beta_sd,
+                    shape=(n_groups, 2 * self.series_order),
+                )
+                beta = pm.Deterministic(
+                    beta_key, pt.as_tensor_variable(beta_mu) + sigma_beta
+                )
+
+            if self.tune_method == "scaled_linear":
+                sigma_beta = pm.HalfNormal(
+                    f"fs_{self.model_idx} - beta_sigma(p={self.period},n={self.series_order})",
+                    sigma=beta_sd,
+                    shape=2 * self.series_order,
+                )
+                offset_beta = pm.Normal(
+                    f"fs_{self.model_idx} - offset_beta(p={self.period},n={self.series_order})",
+                    mu=0,
+                    sigma=1,
+                    shape=(n_groups, 2 * self.series_order),
+                )
+                beta = pm.Deterministic(beta_key, beta_mu + offset_beta * sigma_beta)
+
+            if self.tune_method == "same":
+                beta = pm.Deterministic(beta_key, pt.as_tensor_variable(beta_mu))
 
         return pm.math.sum(x * beta[group], axis=1)
 
