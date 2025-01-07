@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
+import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -91,6 +92,12 @@ class TimeSeriesModel:
                 )
 
             self.fit_params = {"map_approx": self.map_approx, "trace": self.trace}
+
+    def load_trace(self, filepath: Path):
+        if not hasattr(self, "fit_params"):
+            self.fit_params = {"map_approx": None, "trace": None}
+
+        self.fit_params["trace"] = az.from_netcdf(filepath)
 
     def tune(
         self,

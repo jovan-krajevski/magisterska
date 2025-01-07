@@ -173,7 +173,7 @@ class LinearTrend(TimeSeriesModel):
             data, self.pool_cols, self.pool_type
         )
 
-        slope_mu, intercept_mu = self._get_slope_mus_and_intercept_mus(data, prev)
+        slope_mu, intercept_mu = self._get_slope_and_intercept_priors(data, prev)
 
         slope_initval = initvals.get("slope", None)
         if slope_initval is not None:
@@ -237,12 +237,35 @@ class LinearTrend(TimeSeriesModel):
 
         return trend
 
-    def _get_slope_mus_and_intercept_mus(self, data, prev):
+    def _get_slope_and_intercept_priors(self, data, prev):
         if self.pool_type != "individual":
             new_A = (np.array(data["prev_t"][:1])[:, None] > self.s) * 1
 
         slope_mus = []
+        slope_sds = []
         intercept_mus = []
+        intercept_sds = []
+
+        slope_key = f"lt_{self.model_idx} - slope"
+        intercept_key = f"lt_{self.model_idx} - intercept"
+        delta_key = f"lt_{self.model_idx} - delta"
+
+        slope = (
+            prev["map_approx"][slope_key]
+            if prev["map_approx"] is not None
+            else prev["trace"]["posterior"][slope_key].to_numpy().mean(axis=(0, 1))
+        )
+        intercept = (
+            prev["map_approx"][intercept_key]
+            if prev["map_approx"] is not None
+            else prev["trace"]["posterior"][intercept_key].to_numpy().mean(axis=(0, 1))
+        )
+        delta = (
+            prev["map_approx"][delta_key]
+            if prev["map_approx"] is not None
+            else prev["trace"]["posterior"][delta_key].to_numpy().mean(axis=(0, 1))
+        )
+
         for group_code in self.groups_.keys():
             if self.pool_type == "individual":
                 s = self.s[group_code]
@@ -250,28 +273,9 @@ class LinearTrend(TimeSeriesModel):
             else:
                 s = self.s
 
-            slope_mus.append(
-                (
-                    prev["map_approx"][f"lt_{self.model_idx} - slope"][group_code]
-                    + np.dot(
-                        new_A,
-                        prev["map_approx"][f"lt_{self.model_idx} - delta"][group_code],
-                    )
-                )[0]
-            )
+            slope_mus.append((slope[group_code] + np.dot(new_A, delta[group_code]))[0])
             intercept_mus.append(
-                (
-                    prev["map_approx"][f"lt_{self.model_idx} - intercept"][group_code]
-                    + np.dot(
-                        new_A,
-                        (
-                            -s
-                            * prev["map_approx"][f"lt_{self.model_idx} - delta"][
-                                group_code
-                            ]
-                        ),
-                    )
-                )[0]
+                (intercept[group_code] + np.dot(new_A, (-s * delta[group_code])))[0]
             )
 
         return slope_mus, intercept_mus
