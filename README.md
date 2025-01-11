@@ -1,67 +1,15 @@
 # Thesis
 
-## Dev requirements
+## Resources
 
-Development is best done on Ubuntu 24.04.
-It's best to use a new separate VM to avoid issues.
-
-On Windows you can use WSL:
-
-- <https://apps.microsoft.com/detail/ubuntu-22-04-2-lts/9PN20MSR04DW>
-
-- Make sure you have systemd enabled, this should be enabled automatically, see: <https://devblogs.microsoft.com/commandline/systemd-support-is-now-available-in-wsl/#ensuring-you-are-on-the-right-wsl-version>
-
-On MacOS or Linux you can use lima:
-
-- <https://github.com/lima-vm/lima/blob/master/examples/ubuntu-lts.yaml>
-
-## Dev setup
-
-Update and install git
-
-```bash
-sudo apt update
-sudo apt full-upgrade -y
-sudo apt install -y git
-```
-
-Create ssh key for git
-
-```bash
-ssh-keygen -t ed25519 -C "your_email@example.com"
-```
-
-You can clone the repository now.
-Ensure you are in the root of the project directory for these commands
-
-```bash
-# Set up dev environment
-# NOTE: This will prompt for admin password at the end
-./bin/setup.sh
-# NOTE: Restart your shell after this
-
-# Allow direnv to automatically create + activate venv
-# and set environment variables when in project directory
-direnv allow
-
-# Install dependencies
-make dep_sync
-
-# Periodically update to latest packages to be in sync
-sudo apt full-upgrade -y
-
-# Show available dev commands
-make
-
-# Start jupyter notebook
-make dev
-
-# Use the following command to:
-# Sync deps and start jupyter notebook
-make dev_full
-
-# To see outdated dependencies and update to latest versions
-# allowed in pyproject.toml
-make dep_outdated
-make dep_upgrade
-```
+* [FB Prophet paper](https://peerj.com/preprints/3190/)
+* [FB Prophet documentation](https://facebook.github.io/prophet/docs/quick_start.html)
+* [FB Prophet implementation from scratch in PyMC3](https://www.ritchievink.com/blog/2018/10/09/build-facebooks-prophet-in-pymc3-bayesian-time-series-analyis-with-generalized-additive-models/)
+* [FB Prophet implementation from scratch in PyMC3 - presentation](https://www.youtube.com/watch?v=mIAeSDcM1zg)
+* [Multiplicative seasonality in PyMC - inspired by FB Prophet](https://www.pymc.io/projects/examples/en/2022.01.0/time_series/Air_passengers-Prophet_with_Bayesian_workflow.html)
+* [Timeseers repo](https://github.com/MBrouns/timeseers)
+* [Timeseers presentation](https://www.youtube.com/watch?v=appLxcMLT9Y)
+* [Fitting models to short time series](https://robjhyndman.com/hyndsight/short-time-series/)
+* [Fitting models to long time series](https://robjhyndman.com/hyndsight/long-time-series/)
+* [Modeling short time series with prior knowledge](https://minimizeregret.com/short-time-series-prior-knowledge)
+* [Modeling short time series with prior knowledge - PyMC](https://juanitorduz.github.io/short_time_series_pymc/)
