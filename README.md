@@ -20,3 +20,21 @@
 * When modeling time series, in order to use seasonalities, it is recommended you have at least two periods of data if you are going to use a certain seasonality (i.e. if you use yearly seasonality, you need to have at least 2 years of data)
 * If a long time series exhibits similar seasonality patterns as a short time series, we can learn the seasonality from the long time series and transfer and fine-tune it on the short time series
 * We use 80 years of data points from the SMP500 index to learn yearly seasonality patterns about how the markets behave; we transfer and fine-tune these patterns on multiple 3-month windows from various stocks that are present in the SMP500 index
+
+## Dev setup
+
+To install conda (PyMC recommends using conda because of BLAS issues):
+
+```sh
+mkdir -p ~/miniconda3
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda3/miniconda.sh
+bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
+rm ~/miniconda3/miniconda.sh
+source ~/miniconda3/bin/activate
+```
+
+To install PyMC and requirements:
+
+```sh
+conda create -c conda-forge -n pymc_env python=3.12 "pymc>=5.20.0" --file requirements.txt
+```
