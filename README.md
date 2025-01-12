@@ -31,10 +31,12 @@ wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/
 bash ~/miniconda3/miniconda.sh -b -u -p ~/miniconda3
 rm ~/miniconda3/miniconda.sh
 source ~/miniconda3/bin/activate
+conda init --all
 ```
 
 To install PyMC and requirements:
 
 ```sh
+sudo apt install build-essential
 conda create -c conda-forge -n pymc_env python=3.12 "pymc>=5.20.0" --file requirements.txt
 ```
