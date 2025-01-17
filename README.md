@@ -1,5 +1,9 @@
 # Thesis
 
+## Run
+
+Start the finance2.ipynb jupyter notebook (can be started with VS Code or you can start a jupyter server).
+
 ## Resources
 
 * [FB Prophet paper](https://peerj.com/preprints/3190/)
@@ -23,6 +27,14 @@
 
 ## Dev setup
 
+To pull trace (through git LFS), navigate to root directory of repo:
+
+```sh
+curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+sudo apt-get install git-lfs
+git lfs install
+```
+
 To install conda (PyMC recommends using conda because of BLAS issues):
 
 ```sh
@@ -39,4 +51,13 @@ To install PyMC and requirements:
 ```sh
 sudo apt install build-essential
 conda create -c conda-forge -n pymc_env python=3.12 "pymc>=5.20.0" --file requirements.txt
+```
+
+If you want to run sampling on GPU:
+
+```sh
+nvidia-smi
+# see which cuda is installed with previous command
+# and replace cuda12 with installed version
+pip install -U "jax[cuda12]"
 ```
