@@ -154,4 +154,3 @@ dmypy.json
 cython_debug/
 
 data/
-models/
