@@ -1,0 +1,5 @@
+0,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) * (FS(p=365.25,n=10,at=False,complete) + FS(p=7,n=3,at=False,complete)),smp_mape=0.014082486277051463
+1,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) * FS(p=365.25,n=10,at=False,complete),smp_mape=0.014072264354381673
+2,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) * FS(p=7,n=3,at=False,complete),smp_mape=0.014540720259569413
+3,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) + FS(p=365.25,n=10,at=False,complete) + FS(p=7,n=3,at=False,complete),smp_mape=0.2669439968452946
+4,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) + FS(p=365.25,n=10,at=False,complete),smp_mape=0.014499189690398174
