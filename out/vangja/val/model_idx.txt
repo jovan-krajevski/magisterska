@@ -76,3 +76,4 @@
 74,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) + C(l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete),smp_mape=0.014640961009612683
 75,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) + C(l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete),smp_mape=0.014640961009612683
 76,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete),smp_mape=0.014576113231462786
+77,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete),smp_mape=0.014576113231462786
