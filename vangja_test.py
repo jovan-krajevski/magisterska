@@ -44,7 +44,7 @@ for key in model.fit_params["trace"]["posterior"]:
 #     pool_cols="series",
 #     pool_type="individual",
 # )
-for point in pd.date_range("2015-01-02", "2019-01-01"):
+for point in pd.date_range("2015-01-01", "2019-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
     model_metrics = []
     for gspc_ticker in tqdm(gspc_tickers):
@@ -64,5 +64,5 @@ for point in pd.date_range("2015-01-02", "2019-01-01"):
         model_metrics.append(model.metrics(test_df_tickers, yhat))
 
     final_metrics = pd.concat(model_metrics)
-    final_metrics.to_csv(Path("./") / "out" / "vangja" / "test" / "{points}.csv")
+    final_metrics.to_csv(Path("./") / "out" / "vangja" / "test" / f"{points}.csv")
     print(f"{final_metrics['mape'].mean()}")
