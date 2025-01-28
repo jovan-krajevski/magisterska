@@ -77,3 +77,14 @@
 75,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) + C(l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete),smp_mape=0.014640961009612683
 76,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete),smp_mape=0.014576113231462786
 77,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete),smp_mape=0.014576113231462786
+78,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) + FS(p=7,n=3,at=True,complete),smp_mape=0.014495320152047502
+79,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) + FS(p=7,n=3,at=True,complete),smp_mape=0.014495320152047502
+80,context_size=40,beta_sd=0.0001,model=LT(n=25,r=0.8,at=False,complete) + FS(p=7,n=3,at=False,complete),smp_mape=0.014495320152047502
+81,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (FS(p=365.25,n=10,at=False,complete) + FS(p=7,n=3,at=False,complete)),smp_mape=0.014082486277051463
+82,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * FS(p=365.25,n=10,at=False,complete),smp_mape=0.014072264354381673
+83,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * FS(p=7,n=3,at=False,complete),smp_mape=0.014540720259569413
+84,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) + FS(p=365.25,n=10,at=False,complete) + FS(p=7,n=3,at=False,complete),smp_mape=0.2669439968452946
+85,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) + FS(p=365.25,n=10,at=False,complete),smp_mape=0.013322643373643944
+86,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) + FS(p=7,n=3,at=False,complete),smp_mape=0.014495320152047502
+87,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (C(l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + C(l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete)),smp_mape=0.014049697517726924
+88,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (C(l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + C(l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete)),smp_mape=0.014049697517726924
