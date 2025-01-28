@@ -117,3 +117,4 @@
 115,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=False,complete)),smp_mape=0.014082486277051463
 116,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=False,complete)),smp_mape=0.014082486277051463
 117,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * C(l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete),smp_mape=0.013723457580681964
+118,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * C(l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete),smp_mape=0.013723457580681964
