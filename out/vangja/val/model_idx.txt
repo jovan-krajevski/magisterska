@@ -98,3 +98,22 @@
 96,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (C(l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=False,complete)),smp_mape=0.014096084182539655
 97,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + C(l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete)),smp_mape=0.014038020292447734
 98,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + C(l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete)),smp_mape=0.014038020292447734
+99,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete)),smp_mape=0.014073320312098155
+100,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete)),smp_mape=0.014073320312098155
+101,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=True,complete)),smp_mape=0.014167756236484464
+102,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=True,complete)),smp_mape=0.014167756236484464
+103,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete),smp_mape=0.014215657666179158
+104,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete),smp_mape=0.014215657666179158
+105,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=False,complete)),smp_mape=0.014167756236484464
+106,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=False,complete)),smp_mape=0.014167756236484464
+107,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (FS(p=365.25,n=10,at=True,complete) + C(l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete)),smp_mape=0.014085559421262208
+108,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (FS(p=365.25,n=10,at=True,complete) + C(l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete)),smp_mape=0.014085559421262208
+109,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (FS(p=365.25,n=10,at=True,complete) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete)),smp_mape=0.014077641225704549
+110,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (FS(p=365.25,n=10,at=True,complete) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete)),smp_mape=0.014077641225704549
+111,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=True,complete)),smp_mape=0.014082486277051463
+112,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=True,complete)),smp_mape=0.014082486277051463
+113,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * FS(p=365.25,n=10,at=True,complete),smp_mape=0.014072264354381673
+114,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * FS(p=365.25,n=10,at=True,complete),smp_mape=0.014072264354381673
+115,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=False,complete)),smp_mape=0.014082486277051463
+116,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=False,complete)),smp_mape=0.014082486277051463
+117,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * C(l=-1,u=1,at=False,complete) * FS(p=7,n=3,at=True,complete),smp_mape=0.013723457580681964
