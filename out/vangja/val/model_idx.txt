@@ -93,3 +93,4 @@
 91,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (C(l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=True,complete)),smp_mape=0.014096084182539655
 92,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * (C(l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete) + FS(p=7,n=3,at=True,complete)),smp_mape=0.014096084182539655
 93,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * C(l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete),smp_mape=0.014154020014275666
+94,context_size=40,beta_sd=0.001,model=LT(n=25,r=0.8,at=False,complete) * C(l=-1,u=1,at=False,complete) * FS(p=365.25,n=10,at=True,complete),smp_mape=0.014154020014275666
