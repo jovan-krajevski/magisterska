@@ -113,7 +113,7 @@ class TimeSeriesModel:
         self.mcmc_samples = mcmc_samples
 
         self.data = data.reset_index(drop=True)
-        self._process_data(use_prev_ds_stats=True)
+        self._process_data(use_prev_ds_stats=False)
 
         self.initvals = {}
         if use_prophet_initvals:

@@ -127,22 +127,32 @@ class FourierSeasonality(TimeSeriesModel):
             beta_key = (
                 f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
             )
-            beta_mu = (
-                prev["map_approx"][beta_key]
-                if prev["trace"] is None
-                else prev["trace"]["posterior"][beta_key].to_numpy().mean(axis=(1, 0))
-            )
-            beta_sd = (
-                self.beta_sd
-                if prev["trace"] is None
-                else prev["trace"]["posterior"][beta_key].to_numpy().std(axis=(1, 0))
-            )
+            beta_mu_key = f"{beta_key} - beta_mu"
+            beta_sd_key = f"{beta_key} - beta_sd"
+            if beta_mu_key not in prev:
+                prev[beta_mu_key] = (
+                    prev["map_approx"][beta_key]
+                    if prev["trace"] is None
+                    else prev["trace"]["posterior"][beta_key]
+                    .to_numpy()
+                    .mean(axis=(1, 0))
+                )
+                print(prev[beta_mu_key])
+            if beta_sd_key not in prev:
+                prev[beta_sd_key] = (
+                    self.beta_sd
+                    if prev["trace"] is None
+                    else prev["trace"]["posterior"][beta_key]
+                    .to_numpy()
+                    .std(axis=(1, 0))
+                )
+                print(prev[beta_mu_key])
 
             if self.tune_method == "simple":
                 beta = pm.Normal(
                     beta_key,
-                    mu=pt.as_tensor_variable(beta_mu),
-                    sigma=pt.as_tensor_variable(beta_sd),
+                    mu=pt.as_tensor_variable(prev[beta_mu_key]),
+                    sigma=pt.as_tensor_variable(prev[beta_sd_key]),
                     shape=(n_groups, 2 * self.series_order),
                     initval=beta_initval,
                 )
