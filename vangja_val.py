@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 import pandas as pd
@@ -15,6 +16,17 @@ from vangja_simple.components import (
     LinearTrend,
 )
 
+parser = argparse.ArgumentParser(
+    prog="Vangja Val", description="Run Vangja on validation set", epilog="---"
+)
+
+parser.add_argument("-w", "--workers")  # option that takes a value
+parser.add_argument("-i", "--idx")
+
+args = parser.parse_args()
+workers = int(args.workers)
+worker_idx = int(args.idx)
+
 print("Downloading data...")
 dfs = download_data(Path("./data"))
 indexes = process_data(dfs[0])
@@ -28,6 +40,14 @@ model_components: list[list] = [
         FourierSeasonality(period=365.25, series_order=10, allow_tune=allow_tune)
         for allow_tune in [True]
     ],
+    # [
+    #     FourierSeasonality(period=365.25 / 4, series_order=7, allow_tune=allow_tune)
+    #     for allow_tune in [True, False]
+    # ],
+    # [
+    #     FourierSeasonality(period=365.25 / 12, series_order=5, allow_tune=allow_tune)
+    #     for allow_tune in [True, False]
+    # ],
     [
         FourierSeasonality(period=7, series_order=3, allow_tune=allow_tune)
         for allow_tune in [True, False]
@@ -107,7 +127,6 @@ def is_tunable(model):
     return left or right or allow_tune
 
 
-thread_models = final_models[:100]
 point = "2014-01-01"
 
 val_tickers = []
@@ -126,7 +145,12 @@ for gspc_ticker in tqdm(gspc_tickers):
 
 context_size = 40
 model_idx = -1
-val_path = Path("./") / "out" / "vangja" / "val2"
+val_path = Path("./") / "out" / "vangja" / "val3"
+
+start_model_idx = (len(final_models) * 4 // workers) * worker_idx
+end_model_idx = (len(final_models) * 4 // workers) * (worker_idx + 1)
+
+print(f"Running validation from {start_model_idx} to {end_model_idx}...")
 
 for beta_sd in [0.0001, 0.001, 0.01, 0.1]:
     check = generate_train_test_df_around_point(
@@ -136,8 +160,11 @@ for beta_sd in [0.0001, 0.001, 0.01, 0.1]:
         continue
 
     train_df_smp, test_df_smp, scales_smp = check
-    for model in thread_models:
+    for model in final_models:
         model_idx += 1
+        if not (model_idx >= start_model_idx and model_idx < end_model_idx):
+            continue
+
         print(f"Context: {context_size} years, {model}")
         set_tune_method(model, "simple", 10)
         if hasattr(model, "left"):
@@ -164,12 +191,16 @@ for beta_sd in [0.0001, 0.001, 0.01, 0.1]:
             train_df_tickers, test_df_tickers, scales_tickers = val_ticker
             model.tune(train_df_tickers, progressbar=False)
             yhat = model.predict(365)
-            model_metrics.append(model.metrics(test_df_tickers, yhat))
+            model_metrics.append(
+                model.metrics(
+                    test_df_tickers, yhat, label=train_df_tickers["series"].iloc[0]
+                )
+            )
 
         final_metrics = pd.concat(model_metrics)
         final_metrics.to_csv(csv_path)
         single_mape = final_metrics["mape"].mean()
-        with open(val_path / "model_idxs.txt", "a") as f:
-            f.write(f"{model_idx},{single_mape},{beta_sd},{smp_mape},{model}")
+        with open(val_path / f"model_idxs_{worker_idx}.txt", "a") as f:
+            f.write(f"{model_idx},{single_mape},{beta_sd},{smp_mape},{model}\n")
 
         print(f"Val mape: {final_metrics['mape'].mean()}")

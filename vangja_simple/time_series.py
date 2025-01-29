@@ -29,7 +29,7 @@ class TimeSeriesModel:
         self.data.sort_values("ds", inplace=True)
         self._scale_data()
 
-    def _model_init(self):
+    def _get_model_initvals(self):
         i0, i1 = self.data["ds"].idxmin(), self.data["ds"].idxmax()
         T = self.data["t"].iloc[i1] - self.data["t"].iloc[i0]
         slope = (self.data["y"].iloc[i1] - self.data["y"].iloc[i0]) / T
@@ -41,6 +41,10 @@ class TimeSeriesModel:
             "beta": 0.0,
             "sigma": 1.0,
         }
+
+    def set_initval(self, initvals, model: pm.Model):
+        model.set_initval(model.named_vars["sigma"], initvals.get("sigma", 1))
+        self._set_initval(initvals, model)
 
     def fit(
         self,
@@ -60,17 +64,17 @@ class TimeSeriesModel:
 
         self.initvals = {}
         if use_prophet_initvals:
-            self.initvals = self._model_init()
+            self.initvals = self._get_model_initvals()
 
         self.model = pm.Model()
         self.model_idxs = {}
         mu = self.definition(self.model, self.data, self.initvals, self.model_idxs)
 
         with self.model:
-            sigma = pm.HalfNormal(
-                "sigma", sigma_sd, initval=self.initvals.get("sigma", 1)
-            )
+            sigma = pm.HalfNormal("sigma", sigma_sd)
             _ = pm.Normal("obs", mu=mu, sigma=sigma, observed=self.data["y"])
+
+            self.set_initval(self.initvals, self.model)
 
             self.map_approx = None
             self.trace = None
@@ -113,7 +117,7 @@ class TimeSeriesModel:
 
         self.initvals = {}
         if use_prophet_initvals:
-            self.initvals = self._model_init()
+            self.initvals = self._get_model_initvals()
 
         if self.tuned_model is None:
             model = pm.Model()
@@ -132,6 +136,7 @@ class TimeSeriesModel:
             self.tuned_model = model
 
         self.model = self.tuned_model
+        self.set_initval(self.initvals, self.model)
         with self.model:
             pm.set_data({"data": self.data["y"]})
             self.map_approx = None
@@ -249,6 +254,10 @@ class AdditiveTimeSeries(TimeSeriesModel):
             *args, **kwargs
         )
 
+    def _set_initval(self, *args, **kwargs):
+        self.left._set_initval(*args, **kwargs)
+        self.left._set_initval(*args, **kwargs)
+
     def _plot(self, *args, **kwargs):
         self.left._plot(*args, **kwargs)
         self.right._plot(*args, **kwargs)
@@ -276,6 +285,10 @@ class MultiplicativeTimeSeries(TimeSeriesModel):
         return self.left._predict(*args, **kwargs) * (
             1 + self.right._predict(*args, **kwargs)
         )
+
+    def _set_initval(self, *args, **kwargs):
+        self.left._set_initval(*args, **kwargs)
+        self.left._set_initval(*args, **kwargs)
 
     def _plot(self, *args, **kwargs):
         self.left._plot(*args, **kwargs)
