@@ -52,9 +52,6 @@ class FourierSeasonality(TimeSeriesModel):
         model_idxs["fs"] += 1
 
         x = self._fourier_series(data)
-        beta_initval = initvals.get("beta", None)
-        if beta_initval is not None:
-            beta_initval = np.array([beta_initval] * 2 * self.series_order)
 
         with model:
             beta = pm.Normal(
@@ -62,7 +59,6 @@ class FourierSeasonality(TimeSeriesModel):
                 mu=self.beta_mean,
                 sigma=self.beta_sd,
                 shape=2 * self.series_order,
-                initval=beta_initval,
             )
 
         return pm.math.sum(x * beta, axis=1)
@@ -76,9 +72,6 @@ class FourierSeasonality(TimeSeriesModel):
         model_idxs["fs"] += 1
 
         x = self._fourier_series(data)
-        beta_initval = initvals.get("beta", None)
-        if beta_initval is not None:
-            beta_initval = np.array([beta_initval] * 2 * self.series_order)
 
         with model:
             beta_key = (
@@ -110,7 +103,6 @@ class FourierSeasonality(TimeSeriesModel):
                     mu=pt.as_tensor_variable(prev[beta_mu_key]),
                     sigma=pt.as_tensor_variable(prev[beta_sd_key]),
                     shape=2 * self.series_order,
-                    initval=beta_initval,
                 )
 
             if self.tune_method == "linear":
@@ -147,6 +139,18 @@ class FourierSeasonality(TimeSeriesModel):
                 )
 
         return pm.math.sum(x * beta, axis=1)
+
+    def _set_initval(self, initvals, model: pm.Model):
+        beta_initval = initvals.get("beta", None)
+        if beta_initval is not None:
+            beta_initval = np.array([beta_initval] * 2 * self.series_order)
+
+        model.set_initval(
+            model.named_vars[
+                f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
+            ],
+            beta_initval,
+        )
 
     def _det_seasonality_posterior(self, beta, x):
         return np.dot(x, beta.T)

@@ -28,6 +28,9 @@ class Constant(TimeSeriesModel):
     def _tune(self, model, data, initvals, model_idxs, prev):
         return self.definition(model, data, initvals, model_idxs)
 
+    def _set_initval(self, initvals, model: pm.Model):
+        pass
+
     def _predict_map(self, future, map_approx):
         future[f"c_{self.model_idx}"] = (
             np.ones_like(future["t"])

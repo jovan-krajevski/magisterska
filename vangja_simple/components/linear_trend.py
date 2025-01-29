@@ -34,18 +34,9 @@ class LinearTrend(TimeSeriesModel):
         self.model_idx = model_idxs["lt"]
         model_idxs["lt"] += 1
 
-        slope_initval = initvals.get("slope", None)
-        intercept_initval = initvals.get("intercept", None)
-        delta_initval = initvals.get("delta", None)
-        if delta_initval is not None:
-            delta_initval = np.array([delta_initval] * self.n_changepoints)
-
         with model:
             slope = pm.Normal(
-                f"lt_{self.model_idx} - slope",
-                self.slope_mean,
-                self.slope_sd,
-                initval=slope_initval,
+                f"lt_{self.model_idx} - slope", self.slope_mean, self.slope_sd
             )
 
             delta_sd = self.delta_sd
@@ -56,7 +47,6 @@ class LinearTrend(TimeSeriesModel):
                 f"lt_{self.model_idx} - delta",
                 self.delta_mean,
                 delta_sd,
-                initval=delta_initval,
                 shape=self.n_changepoints,
             )
 
@@ -64,7 +54,6 @@ class LinearTrend(TimeSeriesModel):
                 f"lt_{self.model_idx} - intercept",
                 self.intercept_mean,
                 self.intercept_sd,
-                initval=intercept_initval,
             )
 
             t = np.array(data["t"])
@@ -88,6 +77,23 @@ class LinearTrend(TimeSeriesModel):
 
     def _tune(self, model, data, initvals, model_idxs, prev):
         return self.definition(model, data, initvals, model_idxs)
+
+    def _set_initval(self, initvals, model: pm.Model):
+        slope_initval = initvals.get("slope", None)
+        intercept_initval = initvals.get("intercept", None)
+        delta_initval = initvals.get("delta", None)
+        if delta_initval is not None:
+            delta_initval = np.array([delta_initval] * self.n_changepoints)
+
+        model.set_initval(
+            model.named_vars[f"lt_{self.model_idx} - slope"], slope_initval
+        )
+        model.set_initval(
+            model.named_vars[f"lt_{self.model_idx} - intercept"], intercept_initval
+        )
+        model.set_initval(
+            model.named_vars[f"lt_{self.model_idx} - delta"], delta_initval
+        )
 
     def _predict_map(self, future, map_approx):
         new_A = (np.array(future["t"])[:, None] > self.s) * 1
