@@ -130,7 +130,7 @@ def is_tunable(model):
 point = "2014-01-01"
 
 val_tickers = []
-for gspc_ticker in tqdm(gspc_tickers[:10]):
+for gspc_ticker in tqdm(gspc_tickers):
     check = generate_train_test_df_around_point(
         window=91,
         horizon=365,
