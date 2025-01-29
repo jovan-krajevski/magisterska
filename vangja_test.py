@@ -61,7 +61,11 @@ for point in pd.date_range("2015-01-01", "2019-01-01"):
         train_df_tickers, test_df_tickers, scales_tickers = check
         model.tune(train_df_tickers, progressbar=False)
         yhat = model.predict(365)
-        model_metrics.append(model.metrics(test_df_tickers, yhat))
+        model_metrics.append(
+            model.metrics(
+                test_df_tickers, yhat, label=train_df_tickers["series"].iloc[0]
+            )
+        )
 
     final_metrics = pd.concat(model_metrics)
     final_metrics.to_csv(Path("./") / "out" / "vangja" / "test" / f"{points}.csv")
