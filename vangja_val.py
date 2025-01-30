@@ -85,7 +85,8 @@ def sum_models(models):
 
 
 models = [
-    model[0] * sum_models(model[1:]) if len(model) > 1 else model[0] for model in models
+    model[0] ** sum_models(model[1:]) if len(model) > 1 else model[0]
+    for model in models
 ] + [sum_models(model) if len(model) > 1 else model[0] for model in models]
 
 str_models = {""}

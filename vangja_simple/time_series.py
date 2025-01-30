@@ -232,8 +232,11 @@ class TimeSeriesModel:
     def __add__(self, other):
         return AdditiveTimeSeries(self, other)
 
-    def __mul__(self, other):
+    def __pow__(self, other):
         return MultiplicativeTimeSeries(self, other)
+
+    def __mul__(self, other):
+        return SimpleMultiplicativeTimeSeries(self, other)
 
 
 class AdditiveTimeSeries(TimeSeriesModel):
@@ -284,6 +287,40 @@ class MultiplicativeTimeSeries(TimeSeriesModel):
     def _predict(self, *args, **kwargs):
         return self.left._predict(*args, **kwargs) * (
             1 + self.right._predict(*args, **kwargs)
+        )
+
+    def _set_initval(self, *args, **kwargs):
+        self.left._set_initval(*args, **kwargs)
+        self.left._set_initval(*args, **kwargs)
+
+    def _plot(self, *args, **kwargs):
+        self.left._plot(*args, **kwargs)
+        self.right._plot(*args, **kwargs)
+
+    def __str__(self):
+        left = f"{self.left}"
+        if type(self.left) is AdditiveTimeSeries:
+            left = f"({self.left})"
+
+        return f"{left} * (1 + {self.right})"
+
+
+class SimpleMultiplicativeTimeSeries(TimeSeriesModel):
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+
+    def definition(self, *args, **kwargs):
+        return self.left.definition(*args, **kwargs) * self.right.definition(
+            *args, **kwargs
+        )
+
+    def _tune(self, *args, **kwargs):
+        return self.left._tune(*args, **kwargs) * self.right._tune(*args, **kwargs)
+
+    def _predict(self, *args, **kwargs):
+        return self.left._predict(*args, **kwargs) * self.right._predict(
+            *args, **kwargs
         )
 
     def _set_initval(self, *args, **kwargs):
