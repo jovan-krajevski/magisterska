@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import argparse
 import pandas as pd
 from tqdm import tqdm
 
@@ -8,7 +9,20 @@ from vangja.data_utils import (
     generate_train_test_df_around_point,
     process_data,
 )
-from vangja_simple.components import BetaConstant, FourierSeasonality, LinearTrend
+from vangja_simple.components import Constant, FourierSeasonality, LinearTrend
+
+parser = argparse.ArgumentParser(
+    prog="Vangja Test", description="Run Vangja on test set", epilog="---"
+)
+
+parser.add_argument("-ys", "--ystart")
+parser.add_argument("-ye", "--yend")
+parser.add_argument("-t", "--trace")
+
+args = parser.parse_args()
+year_start = args.ystart
+year_end = args.yend
+trace_idx = args.trace
 
 print("START")
 
@@ -19,32 +33,20 @@ gspc_tickers = process_data(dfs[1])
 
 print("DATA READY")
 
-model = LinearTrend() * (
-    FourierSeasonality(365.25, 10, allow_tune=True, tune_method="simple")
-    + BetaConstant(-1, 1)
-    * FourierSeasonality(7, 3, allow_tune=True, tune_method="simple")
+model = (
+    LinearTrend(changepoint_range=1)
+    + FourierSeasonality(365.25, 10, allow_tune=True, tune_method="simple")
+    + Constant(-1, 1) * FourierSeasonality(7, 3, allow_tune=True, tune_method="simple")
 )
-model.load_trace(Path("./") / "models" / "trace_40_y_bc_w.nc")
-for key in model.fit_params["trace"]["posterior"]:
-    if key.startswith("fs_"):
-        model.fit_params["trace"]["posterior"][key] = model.fit_params["trace"][
-            "posterior"
-        ][key][:, :, 0, :]
-# model.fit_params["map_approx"] = None
 
-# model.left = LinearTrend(pool_cols="series", pool_type="individual")
-# model.right.left = FourierSeasonality(
-#     365.25, 10, tune_method="simple", pool_cols="series", pool_type="individual"
-# )
-# model.right.right.right = FourierSeasonality(
-#     7,
-#     3,
-#     allow_tune=True,
-#     tune_method="simple",
-#     pool_cols="series",
-#     pool_type="individual",
-# )
-for point in pd.date_range("2015-01-01", "2019-01-01"):
+model.load_trace(Path("./") / "models" / f"{trace_idx}.nc")
+# for key in model.fit_params["trace"]["posterior"]:
+#     if key.startswith("fs_"):
+#         model.fit_params["trace"]["posterior"][key] = model.fit_params["trace"][
+#             "posterior"
+#         ][key][:, :, 0, :]
+
+for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
     model_metrics = []
     for gspc_ticker in tqdm(gspc_tickers):
@@ -68,5 +70,5 @@ for point in pd.date_range("2015-01-01", "2019-01-01"):
         )
 
     final_metrics = pd.concat(model_metrics)
-    final_metrics.to_csv(Path("./") / "out" / "vangja" / "test" / f"{points}.csv")
+    final_metrics.to_csv(Path("./") / "out" / "vangja" / "test3" / f"{points}.csv")
     print(f"{final_metrics['mape'].mean()}")

@@ -20,7 +20,7 @@ parser = argparse.ArgumentParser(
     prog="Vangja Val", description="Run Vangja on validation set", epilog="---"
 )
 
-parser.add_argument("-w", "--workers")  # option that takes a value
+parser.add_argument("-w", "--workers")
 parser.add_argument("-i", "--idx")
 
 args = parser.parse_args()
