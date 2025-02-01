@@ -48,6 +48,9 @@ model.load_trace(Path("./") / "models" / f"{trace_idx}.nc")
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
+    csv_path = Path("./") / "out" / "vangja" / "test3" / f"{points}.csv"
+    if csv_path.is_file():
+        continue
     model_metrics = []
     for gspc_ticker in tqdm(gspc_tickers):
         check = generate_train_test_df_around_point(
@@ -70,5 +73,5 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
         )
 
     final_metrics = pd.concat(model_metrics)
-    final_metrics.to_csv(Path("./") / "out" / "vangja" / "test3" / f"{points}.csv")
+    final_metrics.to_csv(csv_path)
     print(f"{final_metrics['mape'].mean()}")
