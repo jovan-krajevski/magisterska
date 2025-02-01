@@ -128,13 +128,13 @@ def is_tunable(model):
     return left or right or allow_tune
 
 
-point = "2014-01-01"
+point = "2013-12-02"
 
 val_tickers = []
 for gspc_ticker in tqdm(gspc_tickers):
     check = generate_train_test_df_around_point(
-        window=91,
-        horizon=365,
+        window=61,
+        horizon=30,
         dfs=[gspc_ticker],
         for_prophet=False,
         point=point,
@@ -143,10 +143,10 @@ for gspc_ticker in tqdm(gspc_tickers):
     if check is not None:
         val_tickers.append(check)
 
-
 context_size = 40
 model_idx = -1
-val_path = Path("./") / "out" / "vangja" / "val3"
+val_path = Path("./") / "out" / "vangja" / "val4"
+val_path.mkdir(parents=True, exist_ok=True)
 
 start_model_idx = (len(final_models) * 4 // workers) * worker_idx
 end_model_idx = (len(final_models) * 4 // workers) * (worker_idx + 1)
@@ -155,7 +155,7 @@ print(f"Running validation from {start_model_idx} to {end_model_idx}...")
 
 for beta_sd in [0.0001, 0.001, 0.01, 0.1]:
     check = generate_train_test_df_around_point(
-        window=365 * context_size, horizon=365, dfs=smp, for_prophet=False, point=point
+        window=365 * context_size, horizon=30, dfs=smp, for_prophet=False, point=point
     )
     if check is None:
         continue
@@ -166,12 +166,17 @@ for beta_sd in [0.0001, 0.001, 0.01, 0.1]:
         if not (model_idx >= start_model_idx and model_idx < end_model_idx):
             continue
 
+        csv_path = val_path / f"{model_idx}.csv"
+        if csv_path.is_file():
+            continue
+
         print(f"Context: {context_size} years, {model}")
         set_tune_method(model, "simple", 10)
         if hasattr(model, "left"):
             model.left.changepoint_range = 1
         else:
             model.changepoint_range = 1
+
         model.fit(train_df_smp, progressbar=False)
         yhat = model.predict(365)
         smp_mape = model.metrics(test_df_smp, yhat)["mape"].iloc[0]
@@ -182,10 +187,6 @@ for beta_sd in [0.0001, 0.001, 0.01, 0.1]:
             model.left.changepoint_range = 0.8
         else:
             model.changepoint_range = 0.8
-
-        csv_path = val_path / f"{model_idx}.csv"
-        if csv_path.is_file():
-            continue
 
         model_metrics = []
         for val_ticker in tqdm(val_tickers):
