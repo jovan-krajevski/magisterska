@@ -25,3 +25,7 @@
 24,0.6993543693351145,0.0001,0.22529698294158382,LT(n=25,r=0.8,at=False) + C(l=-1,u=1,at=False) * FS(p=365.25,n=10,at=True) + FS(p=7,n=3,at=False)
 25,0.7006854643301166,0.0001,0.22594019718477742,LT(n=25,r=0.8,at=False) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False) * FS(p=365.25,n=10,at=True) + C(l=-1,u=1,at=False) * FS(p=7,n=3,at=True)
 26,0.6991756082320657,0.0001,0.22585877956076034,LT(n=25,r=0.8,at=False) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False) * FS(p=365.25,n=10,at=True) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False) * FS(p=7,n=3,at=True)
+27,0.6791064547559311,0.0001,0.22434309192859095,LT(n=25,r=0.8,at=False) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False) * FS(p=365.25,n=10,at=True) + FS(p=7,n=3,at=True)
+28,0.6993711737500081,0.0001,0.10231382695471589,LT(n=25,r=0.8,at=False) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False) * FS(p=365.25,n=10,at=True)
+29,0.6998789522462351,0.0001,0.22434309192859095,LT(n=25,r=0.8,at=False) + BC(alpha=0.5,beta=0.5,l=-1,u=1,at=False) * FS(p=365.25,n=10,at=True) + FS(p=7,n=3,at=False)
+30,0.693319704767137,0.0001,0.2302049074171899,LT(n=25,r=0.8,at=False) + FS(p=365.25,n=10,at=True) + C(l=-1,u=1,at=False) * FS(p=7,n=3,at=True)
