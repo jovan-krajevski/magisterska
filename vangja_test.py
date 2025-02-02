@@ -10,6 +10,7 @@ from vangja.data_utils import (
     process_data,
 )
 from vangja_simple.components import Constant, FourierSeasonality, LinearTrend
+from vangja_simple.components.normal_constant import NormalConstant
 
 parser = argparse.ArgumentParser(
     prog="Vangja Test", description="Run Vangja on test set", epilog="---"
@@ -17,12 +18,10 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument("-ys", "--ystart")
 parser.add_argument("-ye", "--yend")
-parser.add_argument("-t", "--trace")
 
 args = parser.parse_args()
 year_start = args.ystart
 year_end = args.yend
-trace_idx = args.trace
 
 print("START")
 
@@ -33,13 +32,12 @@ gspc_tickers = process_data(dfs[1])
 
 print("DATA READY")
 
-model = (
-    LinearTrend(changepoint_range=1)
-    + FourierSeasonality(365.25, 10, allow_tune=True, tune_method="simple")
-    + Constant(-1, 1) * FourierSeasonality(7, 3, allow_tune=True, tune_method="simple")
-)
+trend = LinearTrend()
+yearly = FourierSeasonality(365.25, 10, allow_tune=True, tune_method="simple")
+weekly = FourierSeasonality(7, 3, allow_tune=False, tune_method="simple")
+model = trend ** (NormalConstant(mu=1, sd=0.1) * yearly + weekly)
 
-model.load_trace(Path("./") / "models" / f"{trace_idx}.nc")
+model.load_trace(Path("./") / "models" / "40_y10_w.nc")
 # for key in model.fit_params["trace"]["posterior"]:
 #     if key.startswith("fs_"):
 #         model.fit_params["trace"]["posterior"][key] = model.fit_params["trace"][
@@ -48,7 +46,7 @@ model.load_trace(Path("./") / "models" / f"{trace_idx}.nc")
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    csv_path = Path("./") / "out" / "vangja" / "test3" / f"{points}.csv"
+    csv_path = Path("./") / "out" / "vangja" / "test10" / f"{points}.csv"
     if csv_path.is_file():
         continue
     model_metrics = []
