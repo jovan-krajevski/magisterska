@@ -245,28 +245,62 @@ class AdditiveTimeSeries(TimeSeriesModel):
         self.right = right
 
     def definition(self, *args, **kwargs):
-        return self.left.definition(*args, **kwargs) + self.right.definition(
-            *args, **kwargs
-        )
+        left = self.left
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left.definition(*args, **kwargs)
+
+        right = self.right
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right.definition(*args, **kwargs)
+
+        return left + right
 
     def _tune(self, *args, **kwargs):
-        return self.left._tune(*args, **kwargs) + self.right._tune(*args, **kwargs)
+        left = self.left
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left._tune(*args, **kwargs)
+
+        right = self.right
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right._tune(*args, **kwargs)
+
+        return left + right
 
     def _predict(self, *args, **kwargs):
-        return self.left._predict(*args, **kwargs) + self.right._predict(
-            *args, **kwargs
-        )
+        left = self.left
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left._predict(*args, **kwargs)
+
+        right = self.right
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right._predict(*args, **kwargs)
+
+        return left + right
 
     def _set_initval(self, *args, **kwargs):
-        self.left._set_initval(*args, **kwargs)
-        self.left._set_initval(*args, **kwargs)
+        if not (type(self.left) is int or type(self.left) is float):
+            self.left._set_initval(*args, **kwargs)
+
+        if not (type(self.right) is int or type(self.right) is float):
+            self.right._set_initval(*args, **kwargs)
 
     def _plot(self, *args, **kwargs):
-        self.left._plot(*args, **kwargs)
-        self.right._plot(*args, **kwargs)
+        if not (type(self.left) is int or type(self.left) is float):
+            self.left.plot(*args, **kwargs)
+
+        if not (type(self.right) is int or type(self.right) is float):
+            self.right.plot(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.left} + {self.right}"
+        left = f"{self.left}"
+        if type(self.left) is int or type(self.left) is float:
+            left = f"{self.left}"
+
+        right = f"{self.right}"
+        if type(self.right) is int or type(self.right) is float:
+            right = f"{self.right}"
+
+        return f"{left} + {right}"
 
 
 class MultiplicativeTimeSeries(TimeSeriesModel):
@@ -275,34 +309,64 @@ class MultiplicativeTimeSeries(TimeSeriesModel):
         self.right = right
 
     def definition(self, *args, **kwargs):
-        return self.left.definition(*args, **kwargs) * (
-            1 + self.right.definition(*args, **kwargs)
-        )
+        left = self.left
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left.definition(*args, **kwargs)
+
+        right = self.right
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right.definition(*args, **kwargs)
+
+        return left * (1 + right)
 
     def _tune(self, *args, **kwargs):
-        return self.left._tune(*args, **kwargs) * (
-            1 + self.right._tune(*args, **kwargs)
-        )
+        left = self.left
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left._tune(*args, **kwargs)
+
+        right = self.right
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right._tune(*args, **kwargs)
+
+        return left * (1 + right)
 
     def _predict(self, *args, **kwargs):
-        return self.left._predict(*args, **kwargs) * (
-            1 + self.right._predict(*args, **kwargs)
-        )
+        left = self.left
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left._predict(*args, **kwargs)
+
+        right = self.right
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right._predict(*args, **kwargs)
+
+        return left * (1 + right)
 
     def _set_initval(self, *args, **kwargs):
-        self.left._set_initval(*args, **kwargs)
-        self.left._set_initval(*args, **kwargs)
+        if not (type(self.left) is int or type(self.left) is float):
+            self.left._set_initval(*args, **kwargs)
+
+        if not (type(self.right) is int or type(self.right) is float):
+            self.right._set_initval(*args, **kwargs)
 
     def _plot(self, *args, **kwargs):
-        self.left._plot(*args, **kwargs)
-        self.right._plot(*args, **kwargs)
+        if not (type(self.left) is int or type(self.left) is float):
+            self.left.plot(*args, **kwargs)
+
+        if not (type(self.right) is int or type(self.right) is float):
+            self.right.plot(*args, **kwargs)
 
     def __str__(self):
         left = f"{self.left}"
         if type(self.left) is AdditiveTimeSeries:
             left = f"({self.left})"
 
-        return f"{left} * (1 + {self.right})"
+        if type(self.left) is int or type(self.left) is float:
+            left = f"{self.left}"
+
+        if type(self.right) is int or type(self.right) is float:
+            right = f"{self.right}"
+
+        return f"{left} * (1 + {right})"
 
 
 class SimpleMultiplicativeTimeSeries(TimeSeriesModel):
@@ -311,33 +375,65 @@ class SimpleMultiplicativeTimeSeries(TimeSeriesModel):
         self.right = right
 
     def definition(self, *args, **kwargs):
-        return self.left.definition(*args, **kwargs) * self.right.definition(
-            *args, **kwargs
-        )
+        left = self.left
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left.definition(*args, **kwargs)
+
+        right = self.right
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right.definition(*args, **kwargs)
+
+        return left * right
 
     def _tune(self, *args, **kwargs):
-        return self.left._tune(*args, **kwargs) * self.right._tune(*args, **kwargs)
+        left = self.left
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left._tune(*args, **kwargs)
+
+        right = self.right
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right._tune(*args, **kwargs)
+
+        return left * right
 
     def _predict(self, *args, **kwargs):
-        return self.left._predict(*args, **kwargs) * self.right._predict(
-            *args, **kwargs
-        )
+        left = self.left
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left._predict(*args, **kwargs)
+
+        right = self.right
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right._predict(*args, **kwargs)
+
+        return left * right
 
     def _set_initval(self, *args, **kwargs):
-        self.left._set_initval(*args, **kwargs)
-        self.left._set_initval(*args, **kwargs)
+        if not (type(self.left) is int or type(self.left) is float):
+            self.left._set_initval(*args, **kwargs)
+
+        if not (type(self.right) is int or type(self.right) is float):
+            self.right._set_initval(*args, **kwargs)
 
     def _plot(self, *args, **kwargs):
-        self.left._plot(*args, **kwargs)
-        self.right._plot(*args, **kwargs)
+        if not (type(self.left) is int or type(self.left) is float):
+            self.left.plot(*args, **kwargs)
+
+        if not (type(self.right) is int or type(self.right) is float):
+            self.right.plot(*args, **kwargs)
 
     def __str__(self):
         left = f"{self.left}"
         if type(self.left) is AdditiveTimeSeries:
             left = f"({self.left})"
 
+        if type(self.left) is int or type(self.left) is float:
+            left = f"{self.left}"
+
         right = f"{self.right}"
         if type(self.right) is AdditiveTimeSeries:
             right = f"({self.right})"
+
+        if type(self.right) is int or type(self.right) is float:
+            right = f"{self.right}"
 
         return f"{left} * {right}"
