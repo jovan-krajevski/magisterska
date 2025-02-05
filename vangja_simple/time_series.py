@@ -286,21 +286,13 @@ class AdditiveTimeSeries(TimeSeriesModel):
 
     def _plot(self, *args, **kwargs):
         if not (type(self.left) is int or type(self.left) is float):
-            self.left.plot(*args, **kwargs)
+            self.left._plot(*args, **kwargs)
 
         if not (type(self.right) is int or type(self.right) is float):
-            self.right.plot(*args, **kwargs)
+            self.right._plot(*args, **kwargs)
 
     def __str__(self):
-        left = f"{self.left}"
-        if type(self.left) is int or type(self.left) is float:
-            left = f"{self.left}"
-
-        right = f"{self.right}"
-        if type(self.right) is int or type(self.right) is float:
-            right = f"{self.right}"
-
-        return f"{left} + {right}"
+        return f"{self.left} + {self.right}"
 
 
 class MultiplicativeTimeSeries(TimeSeriesModel):
@@ -350,23 +342,17 @@ class MultiplicativeTimeSeries(TimeSeriesModel):
 
     def _plot(self, *args, **kwargs):
         if not (type(self.left) is int or type(self.left) is float):
-            self.left.plot(*args, **kwargs)
+            self.left._plot(*args, **kwargs)
 
         if not (type(self.right) is int or type(self.right) is float):
-            self.right.plot(*args, **kwargs)
+            self.right._plot(*args, **kwargs)
 
     def __str__(self):
         left = f"{self.left}"
         if type(self.left) is AdditiveTimeSeries:
             left = f"({self.left})"
 
-        if type(self.left) is int or type(self.left) is float:
-            left = f"{self.left}"
-
-        if type(self.right) is int or type(self.right) is float:
-            right = f"{self.right}"
-
-        return f"{left} * (1 + {right})"
+        return f"{left} * (1 + {self.right})"
 
 
 class SimpleMultiplicativeTimeSeries(TimeSeriesModel):
@@ -416,24 +402,18 @@ class SimpleMultiplicativeTimeSeries(TimeSeriesModel):
 
     def _plot(self, *args, **kwargs):
         if not (type(self.left) is int or type(self.left) is float):
-            self.left.plot(*args, **kwargs)
+            self.left._plot(*args, **kwargs)
 
         if not (type(self.right) is int or type(self.right) is float):
-            self.right.plot(*args, **kwargs)
+            self.right._plot(*args, **kwargs)
 
     def __str__(self):
         left = f"{self.left}"
         if type(self.left) is AdditiveTimeSeries:
             left = f"({self.left})"
 
-        if type(self.left) is int or type(self.left) is float:
-            left = f"{self.left}"
-
         right = f"{self.right}"
         if type(self.right) is AdditiveTimeSeries:
             right = f"({self.right})"
-
-        if type(self.right) is int or type(self.right) is float:
-            right = f"{self.right}"
 
         return f"{left} * {right}"

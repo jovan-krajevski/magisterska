@@ -182,7 +182,7 @@ class FourierSeasonality(TimeSeriesModel):
         plot_params["idx"] += 1
         plt.subplot(100, 1, plot_params["idx"])
         plt.title(
-            f"FourierSeasonality({self.model_idx},p={self.period},n={self.series_order}"
+            f"FourierSeasonality({self.model_idx},p={self.period},n={self.series_order})"
         )
         plt.grid()
         plt.plot(
