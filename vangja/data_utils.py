@@ -18,7 +18,7 @@ def download_data(download_folder: Path) -> list[pd.DataFrame]:
         file_path = download_folder / filename
         if file_path.exists():
             dfs.append(
-                pd.read_csv(file_path, header=[0, 1], index_col=[0]).iloc[-365 * 50 :]
+                pd.read_csv(file_path, header=[0, 1], index_col=[0]).iloc[-365 * 15 :]
             )
             continue
 
