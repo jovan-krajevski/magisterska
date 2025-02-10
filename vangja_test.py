@@ -9,7 +9,12 @@ from vangja.data_utils import (
     generate_train_test_df_around_point,
     process_data,
 )
-from vangja_simple.components import BetaConstant, FourierSeasonality, LinearTrend, Constant
+from vangja_simple.components import (
+    BetaConstant,
+    FourierSeasonality,
+    LinearTrend,
+    Constant,
+)
 from vangja_simple.components.normal_constant import NormalConstant
 
 parser = argparse.ArgumentParser(
@@ -35,7 +40,7 @@ print("DATA READY")
 trend = LinearTrend()
 yearly = FourierSeasonality(365.25, 10, allow_tune=True, tune_method="simple")
 weekly = FourierSeasonality(7, 3, allow_tune=True, tune_method="simple")
-model = trend ** (BetaConstant(-1, 1) * yearly + weekly)
+model = trend ** (yearly + weekly)
 
 model.load_trace(Path("./") / "models" / "40_y10_w.nc")
 # for key in model.fit_params["trace"]["posterior"]:
@@ -46,7 +51,7 @@ model.load_trace(Path("./") / "models" / "40_y10_w.nc")
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    csv_path = Path("./") / "out" / "vangja" / "test11" / f"{points}.csv"
+    csv_path = Path("./") / "out" / "vangja" / "test12" / f"{points}.csv"
     if csv_path.is_file():
         continue
     model_metrics = []
