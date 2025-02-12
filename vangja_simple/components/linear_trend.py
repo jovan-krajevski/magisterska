@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pytensor.tensor as pt
 
 from vangja_simple.time_series import TimeSeriesModel
 
@@ -67,16 +68,65 @@ class LinearTrend(TimeSeriesModel):
             A = (t[:, None] > self.s) * 1
 
             gamma = -self.s * delta
-            trend = pm.Deterministic(
-                f"lt_{self.model_idx} - trend",
-                (slope + pm.math.sum(A * delta, axis=1)) * t
-                + (intercept + pm.math.sum(A * gamma, axis=1)),
+            trend = (slope + pm.math.sum(A * delta, axis=1)) * t + (
+                intercept + pm.math.sum(A * gamma, axis=1)
             )
 
         return trend
 
     def _tune(self, model, data, initvals, model_idxs, prev):
-        return self.definition(model, data, initvals, model_idxs)
+        if not self.allow_tune:
+            return self.definition(model, data, initvals, model_idxs)
+
+        model_idxs["lt"] = model_idxs.get("lt", 0)
+        self.model_idx = model_idxs["lt"]
+        model_idxs["lt"] += 1
+
+        with model:
+            slope_key = f"lt_{self.model_idx} - slope"
+            delta_key = f"lt_{self.model_idx} - delta"
+            slope_mu_key = f"{slope_key} - beta_mu"
+            slope_sd_key = f"{slope_key} - beta_sd"
+            if slope_mu_key not in prev:
+                prev[slope_mu_key] = (
+                    prev["map_approx"][slope_key] + prev["map_approx"][delta_key].sum()
+                    if prev["trace"] is None
+                    else (
+                        prev["trace"]["posterior"][slope_key].to_numpy()
+                        + prev["trace"]["posterior"][delta_key].to_numpy().sum(axis=2)
+                    ).mean()
+                ) / (len(prev["trace"]["observed_data"]["obs"]) / len(data))
+
+            if slope_sd_key not in prev:
+                prev[slope_sd_key] = (
+                    self.slope_sd
+                    if prev["trace"] is None
+                    else (
+                        (
+                            prev["trace"]["posterior"][slope_key].to_numpy()
+                            + prev["trace"]["posterior"][delta_key]
+                            .to_numpy()
+                            .sum(axis=2)
+                        )
+                        / (len(prev["trace"]["observed_data"]["obs"]) / len(data))
+                    ).std()
+                )
+
+            slope = pm.Normal(
+                f"lt_{self.model_idx} - slope",
+                pt.as_tensor_variable(prev[slope_mu_key]),
+                pt.as_tensor_variable(prev[slope_sd_key]),
+            )
+
+            intercept = pm.Normal(
+                f"lt_{self.model_idx} - intercept",
+                self.intercept_mean,
+                self.intercept_sd,
+            )
+
+            t = np.array(data["t"])
+
+        return slope * t + intercept
 
     def _set_initval(self, initvals, model: pm.Model):
         slope_initval = initvals.get("slope", None)
@@ -91,32 +141,37 @@ class LinearTrend(TimeSeriesModel):
         model.set_initval(
             model.named_vars[f"lt_{self.model_idx} - intercept"], intercept_initval
         )
-        model.set_initval(
-            model.named_vars[f"lt_{self.model_idx} - delta"], delta_initval
-        )
+        if f"lt_{self.model_idx} - delta" in model.named_vars:
+            model.set_initval(
+                model.named_vars[f"lt_{self.model_idx} - delta"], delta_initval
+            )
 
     def _predict_map(self, future, map_approx):
-        new_A = (np.array(future["t"])[:, None] > self.s) * 1
+        if f"lt_{self.model_idx} - delta" not in map_approx:
+            future[f"lt_{self.model_idx}"] = np.array(
+                map_approx[f"lt_{self.model_idx} - slope"] * future["t"]
+                + map_approx[f"lt_{self.model_idx} - intercept"]
+            )
+        else:
+            new_A = (np.array(future["t"])[:, None] > self.s) * 1
 
-        future[f"lt_{self.model_idx}"] = np.array(
-            (
-                map_approx[f"lt_{self.model_idx} - slope"]
-                + np.dot(new_A, map_approx[f"lt_{self.model_idx} - delta"])
+            future[f"lt_{self.model_idx}"] = np.array(
+                (
+                    map_approx[f"lt_{self.model_idx} - slope"]
+                    + np.dot(new_A, map_approx[f"lt_{self.model_idx} - delta"])
+                )
+                * future["t"]
+                + (
+                    map_approx[f"lt_{self.model_idx} - intercept"]
+                    + np.dot(
+                        new_A, (-self.s * map_approx[f"lt_{self.model_idx} - delta"])
+                    )
+                )
             )
-            * future["t"]
-            + (
-                map_approx[f"lt_{self.model_idx} - intercept"]
-                + np.dot(new_A, (-self.s * map_approx[f"lt_{self.model_idx} - delta"]))
-            )
-        )
 
         return future[f"lt_{self.model_idx}"]
 
     def _predict_mcmc(self, future, trace):
-        new_A = (np.array(future["t"])[:, None] > self.s) * 1
-        delta = (
-            trace["posterior"][f"lt_{self.model_idx} - delta"].to_numpy()[:, :].mean(0)
-        )
         slope = (
             trace["posterior"][f"lt_{self.model_idx} - slope"].to_numpy()[:, :].mean(0)
         )
@@ -126,10 +181,22 @@ class LinearTrend(TimeSeriesModel):
             .mean(0)
         )
 
-        future[f"lt_{self.model_idx}"] = (
-            (slope + np.dot(new_A, delta.T)).T * future["t"].to_numpy()
-            + (intercept + np.dot(new_A, (-self.s * delta).T)).T
-        ).mean(0)
+        if f"lt_{self.model_idx} - delta" not in trace["posterior"]:
+            future[f"lt_{self.model_idx}"] = (
+                slope.mean() * future["t"].to_numpy() + intercept.mean()
+            )
+        else:
+            new_A = (np.array(future["t"])[:, None] > self.s) * 1
+            delta = (
+                trace["posterior"][f"lt_{self.model_idx} - delta"]
+                .to_numpy()[:, :]
+                .mean(0)
+            )
+
+            future[f"lt_{self.model_idx}"] = (
+                (slope + np.dot(new_A, delta.T)).T * future["t"].to_numpy()
+                + (intercept + np.dot(new_A, (-self.s * delta).T)).T
+            ).mean(0)
 
         return future[f"lt_{self.model_idx}"]
 
