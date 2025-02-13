@@ -1,5 +1,11 @@
 import numpy as np
 import pandas as pd
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_absolute_percentage_error,
+    mean_squared_error,
+    root_mean_squared_error,
+)
 
 
 def get_group_definition(X, pool_cols, pool_type):
@@ -27,3 +33,28 @@ def get_changepoints_params(
         n_changepoints * n_changepoints_multiplier,
         1 - leftover / large_window,
     )
+
+
+def get_prophet_metrics(y_trues, y_preds, horizon):
+    result = None
+    for y_true, y_pred in zip(y_trues, y_preds):
+        group_name = y_true["series"].iloc[0]
+        single_metrics = {"mse": {}, "rmse": {}, "mae": {}, "mape": {}}
+        single_metrics["mse"][group_name] = mean_squared_error(
+            y_true["y"], y_pred["yhat"][-horizon:]
+        )
+        single_metrics["rmse"][group_name] = root_mean_squared_error(
+            y_true["y"], y_pred["yhat"][-horizon:]
+        )
+        single_metrics["mae"][group_name] = mean_absolute_error(
+            y_true["y"], y_pred["yhat"][-horizon:]
+        )
+        single_metrics["mape"][group_name] = mean_absolute_percentage_error(
+            y_true["y"], y_pred["yhat"][-horizon:]
+        )
+        if result is None:
+            result = pd.DataFrame(single_metrics)
+        else:
+            result = pd.concat((result, pd.DataFrame(single_metrics)))
+
+    return result
