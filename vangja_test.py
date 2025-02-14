@@ -37,12 +37,7 @@ gspc_tickers = process_data(dfs[1])
 
 print("DATA READY")
 
-trend = LinearTrend(allow_tune=True)
-yearly = FourierSeasonality(365.25, 10, allow_tune=True, tune_method="simple")
-weekly = FourierSeasonality(7, 3, allow_tune=True, tune_method="simple")
-model = trend ** (yearly + weekly)
 
-model.load_trace(Path("./") / "models" / "40_y10_w.nc")
 # for key in model.fit_params["trace"]["posterior"]:
 #     if key.startswith("fs_"):
 #         model.fit_params["trace"]["posterior"][key] = model.fit_params["trace"][
@@ -51,9 +46,29 @@ model.load_trace(Path("./") / "models" / "40_y10_w.nc")
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    csv_path = Path("./") / "out" / "vangja" / "test13" / f"{points}.csv"
+    csv_path = Path("./") / "out" / "vangja" / "test14" / f"{points}.csv"
     if csv_path.is_file():
         continue
+
+    train_df_smp, test_df_smp, scales_smp = generate_train_test_df_around_point(
+        window=365 * 40, horizon=365, dfs=smp, for_prophet=False, point=point
+    )
+
+    trend = LinearTrend(allow_tune=True)
+    yearly = FourierSeasonality(365.25, 10, allow_tune=True, tune_method="simple")
+    weekly = FourierSeasonality(7, 3, allow_tune=True, tune_method="simple")
+    model = trend ** (yearly + weekly)
+    model.fit(train_df_smp)
+    lt_mean = model.map_approx["lt_0 - slope"]
+
+    trend = LinearTrend(
+        allow_tune=True, slope_mean_for_tune=lt_mean / (len(train_df_smp) / 91)
+    )
+    yearly = FourierSeasonality(365.25, 10, allow_tune=True, tune_method="simple")
+    weekly = FourierSeasonality(7, 3, allow_tune=True, tune_method="simple")
+    model = trend ** (yearly + weekly)
+    model.load_trace(Path("./") / "models" / "40_y10_w.nc")
+
     model_metrics = []
     for gspc_ticker in tqdm(gspc_tickers):
         check = generate_train_test_df_around_point(

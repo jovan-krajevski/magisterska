@@ -18,6 +18,7 @@ class LinearTrend(TimeSeriesModel):
         delta_mean=0,
         delta_sd=0.05,
         allow_tune=False,
+        slope_mean_for_tune=None,
     ):
         self.n_changepoints = n_changepoints
         self.changepoint_range = changepoint_range
@@ -29,6 +30,7 @@ class LinearTrend(TimeSeriesModel):
         self.delta_sd = delta_sd
 
         self.allow_tune = allow_tune
+        self.slope_mean_for_tune = slope_mean_for_tune
 
     def definition(self, model, data, initvals, model_idxs):
         model_idxs["lt"] = model_idxs.get("lt", 0)
@@ -87,15 +89,21 @@ class LinearTrend(TimeSeriesModel):
             delta_key = f"lt_{self.model_idx} - delta"
             slope_mu_key = f"{slope_key} - beta_mu"
             slope_sd_key = f"{slope_key} - beta_sd"
-            if slope_mu_key not in prev:
-                prev[slope_mu_key] = (
-                    prev["map_approx"][slope_key] + prev["map_approx"][delta_key].sum()
-                    if prev["trace"] is None
-                    else (
-                        prev["trace"]["posterior"][slope_key].to_numpy()
-                        + prev["trace"]["posterior"][delta_key].to_numpy().sum(axis=2)
-                    ).mean()
-                ) / (len(prev["trace"]["observed_data"]["obs"]) / len(data))
+            if self.slope_mean_for_tune is not None:
+                prev[slope_mu_key] = self.slope_mean_for_tune
+            else:
+                if slope_mu_key not in prev:
+                    prev[slope_mu_key] = (
+                        prev["map_approx"][slope_key]
+                        + prev["map_approx"][delta_key].sum()
+                        if prev["trace"] is None
+                        else (
+                            prev["trace"]["posterior"][slope_key].to_numpy()
+                            + prev["trace"]["posterior"][delta_key]
+                            .to_numpy()
+                            .sum(axis=2)
+                        ).mean()
+                    ) / (len(prev["trace"]["observed_data"]["obs"]) / len(data))
 
             if slope_sd_key not in prev:
                 prev[slope_sd_key] = (
