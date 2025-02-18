@@ -91,9 +91,6 @@ class TimeSeriesModel:
                     compile_kwargs={"mode": "JAX"},
                     options={"maxiter": 1e4},
                 )
-                # self.map_approx = pm.find_MAP(
-                #     start=initval_dict, progressbar=progressbar, maxeval=1e4
-                # )
             else:
                 self.trace = pm.sample(
                     self.mcmc_samples,
@@ -164,9 +161,6 @@ class TimeSeriesModel:
                     compile_kwargs={"mode": "JAX"},
                     options={"maxiter": 1e4},
                 )
-                # self.map_approx = pm.find_MAP(
-                #     start=initval_dict, progressbar=progressbar, maxeval=1e4
-                # )
             else:
                 self.trace = pm.sample(
                     self.mcmc_samples,
