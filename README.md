@@ -50,7 +50,7 @@ To install PyMC and requirements:
 
 ```sh
 sudo apt install build-essential
-conda create -c conda-forge -n pymc_env python=3.12 "pymc>=5.20.0" --file requirements.txt
+conda create -c conda-forge -n pymc_env python=3.12 "pymc>=5.20.1" --file requirements.txt
 ```
 
 If you want to run sampling on GPU:

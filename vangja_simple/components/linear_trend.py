@@ -138,23 +138,24 @@ class LinearTrend(TimeSeriesModel):
 
         return slope * t + intercept
 
-    def _set_initval(self, initvals, model: pm.Model):
+    def _get_initval(self, initvals, model: pm.Model):
         slope_initval = initvals.get("slope", None)
         intercept_initval = initvals.get("intercept", None)
         delta_initval = initvals.get("delta", None)
         if delta_initval is not None:
             delta_initval = np.array([delta_initval] * self.n_changepoints)
 
-        model.set_initval(
-            model.named_vars[f"lt_{self.model_idx} - slope"], slope_initval
-        )
-        model.set_initval(
-            model.named_vars[f"lt_{self.model_idx} - intercept"], intercept_initval
-        )
+        initval_dict = {
+            model.named_vars[f"lt_{self.model_idx} - slope"]: slope_initval,
+            model.named_vars[f"lt_{self.model_idx} - intercept"]: intercept_initval,
+        }
+
         if f"lt_{self.model_idx} - delta" in model.named_vars:
-            model.set_initval(
-                model.named_vars[f"lt_{self.model_idx} - delta"], delta_initval
+            initval_dict[model.named_vars[f"lt_{self.model_idx} - delta"]] = (
+                delta_initval
             )
+
+        return initval_dict
 
     def _predict_map(self, future, map_approx):
         if f"lt_{self.model_idx} - delta" not in map_approx:
