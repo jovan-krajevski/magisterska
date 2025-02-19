@@ -1,3 +1,4 @@
+import pickle
 from pathlib import Path
 from typing import Literal
 
@@ -16,32 +17,33 @@ from sklearn.metrics import (
 
 
 class TimeSeriesModel:
-    def _scale_data(self):
-        self.y_min = 0
-        self.y_max = self.data["y"].abs().max()
-        self.ds_min = self.data["ds"].min()
-        self.ds_max = self.data["ds"].max()
-
-        self.data["y"] = self.data["y"] / self.y_max
-        self.data["t"] = (self.data["ds"] - self.ds_min) / (self.ds_max - self.ds_min)
-
-    def _process_data(self, use_prev_ds_stats: bool = False):
+    def _process_data(
+        self, data: pd.DataFrame, scale_params: dict | None = None
+    ) -> None:
+        self.data = data.reset_index(drop=True)
         self.data["ds"] = pd.to_datetime(self.data["ds"])
         self.data.sort_values("ds", inplace=True)
-        self._scale_data()
 
-    def _get_model_initvals(self):
+        self.scale_params = {
+            "mode": "maxabs",
+            "y_min": 0,
+            "y_max": self.data["y"].abs().max(),
+            "ds_min": self.data["ds"].min(),
+            "ds_max": self.data["ds"].max(),
+            # overwrite some of the old scale params for tune
+            **(scale_params if scale_params is not None else {}),
+        }
+        self.data["y"] = self.data["y"] / self.scale_params["y_max"]
+        self.data["t"] = (self.data["ds"] - self.scale_params["ds_min"]) / (
+            self.scale_params["ds_max"] - self.scale_params["ds_min"]
+        )
+
+    def _get_model_initvals(self) -> dict:
         i0, i1 = self.data["ds"].idxmin(), self.data["ds"].idxmax()
         T = self.data["t"].iloc[i1] - self.data["t"].iloc[i0]
         slope = (self.data["y"].iloc[i1] - self.data["y"].iloc[i0]) / T
         intercept = self.data["y"].iloc[i0] - slope * self.data["t"].iloc[i0]
-        return {
-            "slope": slope,
-            "intercept": intercept,
-            "delta": 0.0,
-            "beta": 0.0,
-            "sigma": 1.0,
-        }
+        return {"slope": slope, "intercept": intercept, "sigma": 1.0}
 
     def get_initval(self, initvals, model: pm.Model):
         return {
@@ -49,39 +51,43 @@ class TimeSeriesModel:
             **self._get_initval(initvals, model),
         }
 
-    def fit(
+    def _init_model(self, model, mu):
+        with model:
+            # will be set during fit/tune
+            sigma_sd = pm.Data("sigma_sd", 0.5)
+            observed = pm.Data("data", [])
+
+            sigma = pm.HalfNormal("sigma", sigma_sd)
+            _ = pm.Normal("obs", mu=mu, sigma=sigma, observed=observed)
+
+            self.map_approx = None
+            self.trace = None
+
+    def _fit_model(
         self,
-        data,
+        model,
         sigma_sd=0.5,
-        mcmc_samples=0,
+        method: Literal["mapx", "map", "fullrank_advi", "nuts"] = "mapx",
+        samples=0,
         chains=4,
         cores=4,
         use_prophet_initvals=True,
         progressbar=True,
         nuts_sampler: Literal["pymc", "nutpie", "numpyro", "blackjax"] = "pymc",
     ):
-        self.mcmc_samples = mcmc_samples
-
-        self.data = data.reset_index(drop=True)
-        self._process_data()
-
+        self.samples = samples
+        self.method = method
         self.initvals = {}
         if use_prophet_initvals:
             self.initvals = self._get_model_initvals()
 
-        self.model = pm.Model()
-        self.model_idxs = {}
-        mu = self.definition(self.model, self.data, self.initvals, self.model_idxs)
+        initval_dict = self.get_initval(self.initvals, model)
 
-        with self.model:
-            sigma = pm.HalfNormal("sigma", sigma_sd)
-            _ = pm.Normal("obs", mu=mu, sigma=sigma, observed=self.data["y"])
+        with model:
+            pm.set_data({"sigma_sd": sigma_sd})
+            pm.set_data({"data": self.data["y"]})
 
-            initval_dict = self.get_initval(self.initvals, self.model)
-
-            self.map_approx = None
-            self.trace = None
-            if self.mcmc_samples == 0:
+            if self.method == "mapx":
                 self.map_approx = pmx.find_MAP(
                     method="L-BFGS-B",
                     use_grad=True,
@@ -91,84 +97,155 @@ class TimeSeriesModel:
                     compile_kwargs={"mode": "JAX"},
                     options={"maxiter": 1e4},
                 )
-            else:
+            elif self.method == "map":
+                self.map_approx = pm.find_MAP(
+                    start=initval_dict,
+                    method="L-BFGS-B",
+                    progressbar=progressbar,
+                    maxeval=1e-4,
+                )
+            elif self.method == "fullrank_advi":
+                approx = pm.fit(50000, method="fullrank_advi", start=initval_dict)
+                self.trace = approx.sample(draws=self.samples)
+            elif self.method == "nuts":
                 self.trace = pm.sample(
-                    self.mcmc_samples,
+                    self.samples,
                     chains=chains,
                     cores=cores,
                     nuts_sampler=nuts_sampler,
                     initvals=initval_dict,
                 )
+            else:
+                raise NotImplementedError(
+                    f"Method {self.method} is not supported at the moment!"
+                )
 
-            self.fit_params = {"map_approx": self.map_approx, "trace": self.trace}
-            self.tuned_model = None
+    def fit(
+        self,
+        data: pd.DataFrame,
+        sigma_sd: float = 0.5,
+        method: Literal["mapx", "map", "fullrank_advi", "nuts"] = "mapx",
+        samples: int = 0,
+        chains: int = 4,
+        cores: int = 4,
+        use_prophet_initvals: bool = True,
+        progressbar: bool = True,
+        nuts_sampler: Literal["pymc", "nutpie", "numpyro", "blackjax"] = "pymc",
+    ):
+        self._process_data(data)
 
-    def load_trace(self, filepath: Path):
-        if not hasattr(self, "fit_params"):
-            self.fit_params = {"map_approx": None, "trace": None}
-
-        self.fit_params["trace"] = az.from_netcdf(filepath)
-        self.fit_params["map_approx"] = None
+        self.model = pm.Model()
         self.tuned_model = None
+        self.model_idxs = {}
+        self._init_model(
+            model=self.model, mu=self.definition(self.model, self.data, self.model_idxs)
+        )
+
+        self._fit_model(
+            self.model,
+            sigma_sd=sigma_sd,
+            method=method,
+            samples=samples,
+            chains=chains,
+            cores=cores,
+            use_prophet_initvals=use_prophet_initvals,
+            progressbar=progressbar,
+            nuts_sampler=nuts_sampler,
+        )
+        self.fit_params = {"map_approx": self.map_approx, "trace": self.trace}
 
     def tune(
         self,
-        data,
-        sigma_sd=0.5,
-        mcmc_samples=0,
-        chains=4,
-        cores=4,
-        use_prophet_initvals=True,
-        progressbar=True,
+        data: pd.DataFrame,
+        sigma_sd: float = 0.5,
+        method: Literal["mapx", "map", "fullrank_advi", "nuts"] = "mapx",
+        samples: int = 0,
+        chains: int = 4,
+        cores: int = 4,
+        use_prophet_initvals: bool = True,
+        progressbar: bool = True,
         nuts_sampler: Literal["pymc", "nutpie", "numpyro", "blackjax"] = "pymc",
     ):
-        self.mcmc_samples = mcmc_samples
+        self._process_data(
+            data,
+            {
+                "ds_min": self.scale_params["ds_min"],
+                "ds_max": self.scale_params["ds_max"],
+            },
+        )
 
-        self.data = data.reset_index(drop=True)
-        self._process_data()
-
-        self.initvals = {}
-        if use_prophet_initvals:
-            self.initvals = self._get_model_initvals()
-
+        # cache model if tuned multiple times with same self.fit_params
         if self.tuned_model is None:
-            model = pm.Model()
             self.model_idxs = {}
-            mu = self._tune(
-                model, self.data, self.initvals, self.model_idxs, self.fit_params
+            self.tuned_model = pm.Model()
+            self._init_model(
+                model=self.tuned_model,
+                mu=self._tune(
+                    self.tuned_model,
+                    self.data,
+                    self.model_idxs,
+                    self.fit_params,
+                ),
             )
 
-            with model:
-                observed = pm.Data("data", self.data["y"])
-                sigma = pm.HalfNormal("sigma", sigma_sd)
-                _ = pm.Normal("obs", mu=mu, sigma=sigma, observed=observed)
-
-            self.tuned_model = model
-
         self.model = self.tuned_model
-        initval_dict = self.get_initval(self.initvals, self.model)
-        with self.model:
-            pm.set_data({"data": self.data["y"]})
-            self.map_approx = None
-            self.trace = None
-            if self.mcmc_samples == 0:
-                self.map_approx = pmx.find_MAP(
-                    method="L-BFGS-B",
-                    use_grad=True,
-                    initvals=initval_dict,
-                    progressbar=progressbar,
-                    gradient_backend="jax",
-                    compile_kwargs={"mode": "JAX"},
-                    options={"maxiter": 1e4},
-                )
-            else:
-                self.trace = pm.sample(
-                    self.mcmc_samples,
-                    chains=chains,
-                    cores=cores,
-                    nuts_sampler=nuts_sampler,
-                    initvals=initval_dict,
-                )
+        self._fit_model(
+            self.model,
+            sigma_sd=sigma_sd,
+            method=method,
+            samples=samples,
+            chains=chains,
+            cores=cores,
+            use_prophet_initvals=use_prophet_initvals,
+            progressbar=progressbar,
+            nuts_sampler=nuts_sampler,
+        )
+
+    def save_model(self, filepath: Path):
+        filepath.mkdir(parents=True)
+        with open(filepath / "model.pkl", "wb") as f:
+            pickle.dump(
+                {
+                    "scale_params": self.scale_params,
+                    "map_approx": self.map_approx,
+                    "method": self.method,
+                    "samples": self.samples,
+                },
+                f,
+            )
+
+        with open(filepath / "data.pkl", "wb") as f:
+            pickle.dump(self.data, f)
+
+        if self.trace is not None:
+            self.trace.to_netcdf(filepath / "trace.nc")
+
+    def load_model(self, filepath: Path):
+        self.fit_params = {}
+
+        with open(filepath / "model.pkl", "rb") as f:
+            pkl = pickle.load(f)
+            self.scale_params = pkl["scale_params"]
+            map_approx = pkl["map_approx"]
+            self.method = pkl["method"]
+            self.samples = pkl["samples"]
+
+        with open(filepath / "data.pkl", "rb") as f:
+            self.data = pickle.load(f)
+
+        trace_path = filepath / "trace.nc"
+        trace = az.from_netcdf(trace_path) if trace_path.exists() else None
+
+        self.model = pm.Model()
+        self.tuned_model = None
+        self.model_idxs = {}
+        self._init_model(
+            model=self.model, mu=self.definition(self.model, self.data, self.model_idxs)
+        )
+
+        self.map_approx = map_approx
+        self.trace = trace
+        self.fit_params = {"map_approx": self.map_approx, "trace": self.trace}
 
     def _make_future_df(self, days):
         future = pd.DataFrame(
@@ -176,10 +253,14 @@ class TimeSeriesModel:
                 "ds": pd.DatetimeIndex(
                     np.hstack(
                         (
-                            self.data["ds"].unique().to_numpy(),
                             pd.date_range(
-                                self.ds_max,
-                                self.ds_max + pd.Timedelta(days, "D"),
+                                self.scale_params["ds_min"],
+                                self.scale_params["ds_max"],
+                                freq="D",
+                            ).to_numpy(),
+                            pd.date_range(
+                                self.scale_params["ds_max"],
+                                self.scale_params["ds_max"] + pd.Timedelta(days, "D"),
                                 inclusive="right",
                             ).to_numpy(),
                         )
@@ -187,28 +268,28 @@ class TimeSeriesModel:
                 )
             }
         )
-        future["t"] = (future["ds"] - self.ds_min) / (self.ds_max - self.ds_min)
+        future["t"] = (future["ds"] - self.scale_params["ds_min"]) / (
+            self.scale_params["ds_max"] - self.scale_params["ds_min"]
+        )
         return future
 
     def predict(self, days):
         future = self._make_future_df(days)
-        forecasts = self._predict(
-            future, self.mcmc_samples, self.map_approx, self.trace
-        )
+        forecasts = self._predict(future, self.method, self.map_approx, self.trace)
 
-        future["yhat"] = forecasts * self.y_max
+        future["yhat"] = forecasts * self.scale_params["y_max"]
         for model_type, model_cnt in self.model_idxs.items():
             if model_type.startswith("lt") is False:
                 continue
             for model_idx in range(model_cnt):
                 component = f"{model_type}_{model_idx}"
                 if component in future.columns:
-                    future[component] *= self.y_max
+                    future[component] *= self.scale_params["y_max"]
 
         return future
 
-    def _predict(self, future, mcmc_samples, map_approx, trace):
-        if mcmc_samples == 0:
+    def _predict(self, future, method, map_approx, trace):
+        if method in ["mapx", "map"]:
             return self._predict_map(future, map_approx)
 
         return self._predict_mcmc(future, trace)
@@ -221,7 +302,7 @@ class TimeSeriesModel:
 
         plt.scatter(
             self.data["ds"],
-            self.data["y"] * self.y_max,
+            self.data["y"] * self.scale_params["y_max"],
             s=0.5,
             color="C0",
             label="train y",
@@ -234,7 +315,7 @@ class TimeSeriesModel:
 
         plt.legend()
         plot_params = {"idx": 1}
-        self._plot(plot_params, future, self.data, self.y_max, y_true)
+        self._plot(plot_params, future, self.data, self.scale_params, y_true)
 
     def metrics(self, y_true, future, label="y"):
         y = y_true["y"]
@@ -251,11 +332,20 @@ class TimeSeriesModel:
     def __add__(self, other):
         return AdditiveTimeSeries(self, other)
 
+    def __radd__(self, other):
+        return AdditiveTimeSeries(other, self)
+
     def __pow__(self, other):
         return MultiplicativeTimeSeries(self, other)
 
+    def __rpow__(self, other):
+        return MultiplicativeTimeSeries(other, self)
+
     def __mul__(self, other):
         return SimpleMultiplicativeTimeSeries(self, other)
+
+    def __rmul__(self, other):
+        return SimpleMultiplicativeTimeSeries(other, self)
 
 
 class AdditiveTimeSeries(TimeSeriesModel):

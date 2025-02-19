@@ -20,7 +20,7 @@ class BetaConstant(TimeSeriesModel):
         self.beta = beta
         self.allow_tune = allow_tune
 
-    def definition(self, model, data, initvals, model_idxs):
+    def definition(self, model, data, model_idxs):
         model_idxs["c"] = model_idxs.get("c", 0)
         self.model_idx = model_idxs["c"]
         model_idxs["c"] += 1
@@ -38,8 +38,8 @@ class BetaConstant(TimeSeriesModel):
 
         return c
 
-    def _tune(self, model, data, initvals, model_idxs, prev):
-        return self.definition(model, data, initvals, model_idxs)
+    def _tune(self, model, data, model_idxs, prev):
+        return self.definition(model, data, model_idxs)
 
     def _get_initval(self, initvals, model: pm.Model):
         return {}
@@ -63,7 +63,7 @@ class BetaConstant(TimeSeriesModel):
 
         return future[f"bc_{self.model_idx}"]
 
-    def _plot(self, plot_params, future, data, y_max, y_true=None):
+    def _plot(self, plot_params, future, data, scale_params, y_true=None):
         plot_params["idx"] += 1
         plt.subplot(100, 1, plot_params["idx"])
         plt.title(f"BetaConstant({self.model_idx},l={self.lower},u={self.upper})")
