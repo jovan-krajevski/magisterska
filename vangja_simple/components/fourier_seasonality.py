@@ -46,7 +46,7 @@ class FourierSeasonality(TimeSeriesModel):
 
         return fourier_components
 
-    def definition(self, model, data, initvals, model_idxs):
+    def definition(self, model, data, model_idxs):
         model_idxs["fs"] = model_idxs.get("fs", 0)
         self.model_idx = model_idxs["fs"]
         model_idxs["fs"] += 1
@@ -63,9 +63,9 @@ class FourierSeasonality(TimeSeriesModel):
 
         return pm.math.sum(x * beta, axis=1)
 
-    def _tune(self, model, data, initvals, model_idxs, prev):
+    def _tune(self, model, data, model_idxs, prev):
         if not self.allow_tune:
-            return self.definition(model, data, initvals, model_idxs)
+            return self.definition(model, data, model_idxs)
 
         model_idxs["fs"] = model_idxs.get("fs", 0)
         self.model_idx = model_idxs["fs"]
@@ -168,7 +168,7 @@ class FourierSeasonality(TimeSeriesModel):
 
         return future[f"fs_{self.model_idx}"]
 
-    def _plot(self, plot_params, future, data, y_max, y_true=None):
+    def _plot(self, plot_params, future, data, scale_params, y_true=None):
         date = future["ds"] if self.period > 7 else future["ds"].dt.day_name()
         plot_params["idx"] += 1
         plt.subplot(100, 1, plot_params["idx"])

@@ -16,7 +16,7 @@ class NormalConstant(TimeSeriesModel):
         self.sd = sd
         self.allow_tune = allow_tune
 
-    def definition(self, model, data, initvals, model_idxs):
+    def definition(self, model, data, model_idxs):
         model_idxs["c"] = model_idxs.get("c", 0)
         self.model_idx = model_idxs["c"]
         model_idxs["c"] += 1
@@ -30,8 +30,8 @@ class NormalConstant(TimeSeriesModel):
 
         return c
 
-    def _tune(self, model, data, initvals, model_idxs, prev):
-        return self.definition(model, data, initvals, model_idxs)
+    def _tune(self, model, data, model_idxs, prev):
+        return self.definition(model, data, model_idxs)
 
     def _get_initval(self, initvals, model: pm.Model):
         return {}
@@ -55,7 +55,7 @@ class NormalConstant(TimeSeriesModel):
 
         return future[f"nc_{self.model_idx}"]
 
-    def _plot(self, plot_params, future, data, y_max, y_true=None):
+    def _plot(self, plot_params, future, data, scale_params, y_true=None):
         plot_params["idx"] += 1
         plt.subplot(100, 1, plot_params["idx"])
         plt.title(f"NormalConstant({self.model_idx},mu={self.mu},sd={self.sd})")

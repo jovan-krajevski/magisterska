@@ -32,7 +32,7 @@ class LinearTrend(TimeSeriesModel):
         self.allow_tune = allow_tune
         self.slope_mean_for_tune = slope_mean_for_tune
 
-    def definition(self, model, data, initvals, model_idxs):
+    def definition(self, model, data, model_idxs):
         model_idxs["lt"] = model_idxs.get("lt", 0)
         self.model_idx = model_idxs["lt"]
         model_idxs["lt"] += 1
@@ -78,9 +78,9 @@ class LinearTrend(TimeSeriesModel):
 
         return trend
 
-    def _tune(self, model, data, initvals, model_idxs, prev):
+    def _tune(self, model, data, model_idxs, prev):
         if not self.allow_tune:
-            return self.definition(model, data, initvals, model_idxs)
+            return self.definition(model, data, model_idxs)
 
         model_idxs["lt"] = model_idxs.get("lt", 0)
         self.model_idx = model_idxs["lt"]
@@ -139,23 +139,14 @@ class LinearTrend(TimeSeriesModel):
         return slope * t + intercept
 
     def _get_initval(self, initvals, model: pm.Model):
-        slope_initval = initvals.get("slope", None)
-        intercept_initval = initvals.get("intercept", None)
-        delta_initval = initvals.get("delta", None)
-        if delta_initval is not None:
-            delta_initval = np.array([delta_initval] * self.n_changepoints)
-
-        initval_dict = {
-            model.named_vars[f"lt_{self.model_idx} - slope"]: slope_initval,
-            model.named_vars[f"lt_{self.model_idx} - intercept"]: intercept_initval,
+        return {
+            model.named_vars[f"lt_{self.model_idx} - slope"]: initvals.get(
+                "slope", None
+            ),
+            model.named_vars[f"lt_{self.model_idx} - intercept"]: initvals.get(
+                "intercept", None
+            ),
         }
-
-        if f"lt_{self.model_idx} - delta" in model.named_vars:
-            initval_dict[model.named_vars[f"lt_{self.model_idx} - delta"]] = (
-                delta_initval
-            )
-
-        return initval_dict
 
     def _predict_map(self, future, map_approx):
         if f"lt_{self.model_idx} - delta" not in map_approx:
@@ -211,7 +202,7 @@ class LinearTrend(TimeSeriesModel):
 
         return future[f"lt_{self.model_idx}"]
 
-    def _plot(self, plot_params, future, data, y_max, y_true=None):
+    def _plot(self, plot_params, future, data, scale_params, y_true=None):
         plot_params["idx"] += 1
         plt.subplot(100, 1, plot_params["idx"])
         plt.title(f"LinearTrend({self.model_idx})")
