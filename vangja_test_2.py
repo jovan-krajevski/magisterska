@@ -49,18 +49,55 @@ print("DATA READY")
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    csv_path = Path("./") / "out" / "vangja" / "test20" / f"{points}.csv"
+    parent_path = Path("./") / "out" / "vangja" / "test21"
+    csv_path = parent_path / f"{points}.csv"
+    maps_path = parent_path / f"{points}_maps.csv"
     if csv_path.is_file():
         continue
 
-    model_metrics = []
-    trend = LinearTrend(n_changepoints=0)
-    # decenial = FourierSeasonality(365.25 * 10, 4, allow_tune=True, tune_method="simple")
-    # presidential = FourierSeasonality(365.25 * 4, 9, allow_tune=True, tune_method="simple")
+    train_df_smp, test_df_smp, scales_smp = generate_train_test_df_around_point(
+        window=365 * 40, horizon=365, dfs=smp, for_prophet=False, point=point
+    )
+    trend = LinearTrend(changepoint_range=1)
     yearly = FourierSeasonality(365.25, 10, allow_tune=True, tune_method="simple")
     weekly = FourierSeasonality(7, 3, allow_tune=True, tune_method="simple")
     model = trend ** (weekly + yearly)
+    model.fit(train_df_smp)
+
+    weekly_mean = model.map_approx[
+        f"fs_{weekly.model_idx} - beta(p={weekly.period},n={weekly.series_order})"
+    ]
+    yearly_mean = model.map_approx[
+        f"fs_{yearly.model_idx} - beta(p={yearly.period},n={yearly.series_order})"
+    ]
+    scale_params = model.scale_params
+
+    model_metrics = []
+    model_maps = []
+    trend = LinearTrend(n_changepoints=0)
+    # decenial = FourierSeasonality(365.25 * 10, 4, allow_tune=True, tune_method="simple")
+    # presidential = FourierSeasonality(365.25 * 4, 9, allow_tune=True, tune_method="simple")
+    yearly = FourierSeasonality(
+        365.25,
+        10,
+        allow_tune=True,
+        tune_method="simple",
+        override_beta_mean_for_tune=yearly_mean,
+    )
+    weekly = FourierSeasonality(
+        7,
+        3,
+        allow_tune=True,
+        tune_method="simple",
+        override_beta_mean_for_tune=weekly_mean,
+    )
+    model = trend ** (weekly + yearly)
     model.load_model(Path("./") / "models" / "advi_40_y_w")
+    model.scale_params = {
+        **model.scale_params,
+        "ds_min": scale_params["ds_min"],
+        "ds_max": scale_params["ds_max"],
+    }
 
     for gspc_ticker in tqdm(gspc_tickers):
         check = generate_train_test_df_around_point(
@@ -81,10 +118,16 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
                 test_df_tickers, yhat, label=train_df_tickers["series"].iloc[0]
             )
         )
+        model_maps.append(model.map_approx)
         # print(model_metrics[-1]["mape"].iloc[0])
 
     final_metrics = pd.concat(model_metrics)
+    final_maps = pd.DataFrame.from_records(model_maps, index=final_metrics.index)
+    final_metrics = final_metrics.sort_index()
+    final_maps = final_maps.sort_index()
     final_metrics.to_csv(csv_path)
+    final_maps.to_csv(maps_path)
+
     print(f"{final_metrics['mape'].mean()}")
 
     del model

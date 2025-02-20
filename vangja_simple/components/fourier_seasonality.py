@@ -17,7 +17,9 @@ class FourierSeasonality(TimeSeriesModel):
         beta_sd=10,
         shrinkage_strength=100,
         allow_tune=False,
-        tune_method: Literal["same", "simple", "linear", "scaled_linear"] = "same",
+        tune_method: Literal["simple", "offset", "linear", "same"] = "simple",
+        override_beta_mean_for_tune: bool | np.ndarray = False,
+        override_beta_sd_for_tune: bool | np.ndarray = False,
     ):
         self.period = period
         self.series_order = series_order
@@ -27,6 +29,8 @@ class FourierSeasonality(TimeSeriesModel):
 
         self.allow_tune = allow_tune
         self.tune_method = tune_method
+        self.override_beta_mean_for_tune = override_beta_mean_for_tune
+        self.override_beta_sd_for_tune = override_beta_sd_for_tune
 
     def _fourier_series(self, data):
         # convert to days since epoch
@@ -79,23 +83,30 @@ class FourierSeasonality(TimeSeriesModel):
             )
             beta_mu_key = f"{beta_key} - beta_mu"
             beta_sd_key = f"{beta_key} - beta_sd"
-            if beta_mu_key not in prev:
-                prev[beta_mu_key] = (
-                    prev["map_approx"][beta_key]
-                    if prev["trace"] is None
-                    else prev["trace"]["posterior"][beta_key]
-                    .to_numpy()
-                    .mean(axis=(1, 0))
-                )
 
-            if beta_sd_key not in prev:
-                prev[beta_sd_key] = (
-                    self.beta_sd
-                    if prev["trace"] is None
-                    else prev["trace"]["posterior"][beta_key]
-                    .to_numpy()
-                    .std(axis=(1, 0))
-                )
+            if self.override_beta_mean_for_tune is not False:
+                prev[beta_mu_key] = self.override_beta_mean_for_tune
+            else:
+                if beta_mu_key not in prev:
+                    prev[beta_mu_key] = (
+                        prev["map_approx"][beta_key]
+                        if prev["trace"] is None
+                        else prev["trace"]["posterior"][beta_key]
+                        .to_numpy()
+                        .mean(axis=(1, 0))
+                    )
+
+            if self.override_beta_sd_for_tune is not False:
+                prev[beta_sd_key] = self.override_beta_sd_for_tune
+            else:
+                if beta_sd_key not in prev:
+                    prev[beta_sd_key] = (
+                        self.beta_sd
+                        if prev["trace"] is None
+                        else prev["trace"]["posterior"][beta_key]
+                        .to_numpy()
+                        .std(axis=(1, 0))
+                    )
 
             if self.tune_method == "simple":
                 beta = pm.Normal(
@@ -105,7 +116,7 @@ class FourierSeasonality(TimeSeriesModel):
                     shape=2 * self.series_order,
                 )
 
-            if self.tune_method == "linear":
+            if self.tune_method == "offset":
                 sigma_beta = pm.Normal(
                     f"fs_{self.model_idx} - beta_sigma(p={self.period},n={self.series_order})",
                     mu=0,
@@ -117,7 +128,7 @@ class FourierSeasonality(TimeSeriesModel):
                     pt.as_tensor_variable(prev[beta_mu_key]) + sigma_beta,
                 )
 
-            if self.tune_method == "scaled_linear":
+            if self.tune_method == "linear":
                 sigma_beta = pm.HalfNormal(
                     f"fs_{self.model_idx} - beta_sigma(p={self.period},n={self.series_order})",
                     sigma=pt.as_tensor_variable(prev[beta_sd_key]),

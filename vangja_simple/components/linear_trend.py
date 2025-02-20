@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
+import pandas as pd
 
 from vangja_simple.time_series import TimeSeriesModel
 
@@ -9,16 +10,17 @@ from vangja_simple.time_series import TimeSeriesModel
 class LinearTrend(TimeSeriesModel):
     def __init__(
         self,
-        n_changepoints=25,
-        changepoint_range=0.8,
-        slope_mean=0,
-        slope_sd=5,
-        intercept_mean=0,
-        intercept_sd=5,
-        delta_mean=0,
-        delta_sd=0.05,
-        allow_tune=False,
-        slope_mean_for_tune=None,
+        n_changepoints: int = 25,
+        changepoint_range: float = 0.8,
+        slope_mean: float = 0,
+        slope_sd: float = 5,
+        intercept_mean: float = 0,
+        intercept_sd: float = 5,
+        delta_mean: float = 0,
+        delta_sd: None | float = 0.05,
+        allow_tune: bool = False,
+        override_slope_mean_for_tune: bool | np.ndarray = False,
+        override_slope_sd_for_tune: bool | np.ndarray = False,
     ):
         self.n_changepoints = n_changepoints
         self.changepoint_range = changepoint_range
@@ -30,9 +32,12 @@ class LinearTrend(TimeSeriesModel):
         self.delta_sd = delta_sd
 
         self.allow_tune = allow_tune
-        self.slope_mean_for_tune = slope_mean_for_tune
+        self.override_slope_mean_for_tune = override_slope_mean_for_tune
+        self.override_slope_sd_for_tune = override_slope_sd_for_tune
 
-    def definition(self, model, data, model_idxs):
+    def definition(
+        self, model: TimeSeriesModel, data: pd.DataFrame, model_idxs: dict[str, int]
+    ):
         model_idxs["lt"] = model_idxs.get("lt", 0)
         self.model_idx = model_idxs["lt"]
         model_idxs["lt"] += 1
@@ -78,7 +83,13 @@ class LinearTrend(TimeSeriesModel):
 
         return trend
 
-    def _tune(self, model, data, model_idxs, prev):
+    def _tune(
+        self,
+        model: TimeSeriesModel,
+        data: pd.DataFrame,
+        model_idxs: dict[str, int],
+        prev: dict,
+    ):
         if not self.allow_tune:
             return self.definition(model, data, model_idxs)
 
@@ -91,8 +102,8 @@ class LinearTrend(TimeSeriesModel):
             delta_key = f"lt_{self.model_idx} - delta"
             slope_mu_key = f"{slope_key} - beta_mu"
             slope_sd_key = f"{slope_key} - beta_sd"
-            if self.slope_mean_for_tune is not None:
-                prev[slope_mu_key] = self.slope_mean_for_tune
+            if self.override_slope_mean_for_tune is not False:
+                prev[slope_mu_key] = self.override_slope_mean_for_tune
             else:
                 if slope_mu_key not in prev:
                     prev[slope_mu_key] = (
@@ -105,22 +116,22 @@ class LinearTrend(TimeSeriesModel):
                             .to_numpy()
                             .sum(axis=2)
                         ).mean()
-                    ) / (len(prev["trace"]["observed_data"]["obs"]) / len(data))
+                    )
 
-            if slope_sd_key not in prev:
-                prev[slope_sd_key] = (
-                    self.slope_sd
-                    if prev["trace"] is None
-                    else (
-                        (
+            if self.override_slope_sd_for_tune is not False:
+                prev[slope_sd_key] = self.override_slope_sd_for_tune
+            else:
+                if slope_sd_key not in prev:
+                    prev[slope_sd_key] = (
+                        self.slope_sd
+                        if prev["trace"] is None
+                        else (
                             prev["trace"]["posterior"][slope_key].to_numpy()
                             + prev["trace"]["posterior"][delta_key]
                             .to_numpy()
                             .sum(axis=2)
-                        )
-                        / (len(prev["trace"]["observed_data"]["obs"]) / len(data))
-                    ).std()
-                )
+                        ).std()
+                    )
 
             slope = pm.Normal(
                 f"lt_{self.model_idx} - slope",

@@ -14,17 +14,30 @@ from sklearn.metrics import (
     mean_squared_error,
     root_mean_squared_error,
 )
+from vangja_simple.types import ScaleParams
 
 
 class TimeSeriesModel:
     def _process_data(
-        self, data: pd.DataFrame, scale_params: dict | None = None
+        self, data: pd.DataFrame, scale_params: ScaleParams | None = None
     ) -> None:
+        """Converts dataframe to correct format and scale dates and values.
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            A pandas dataframe that must at least have columns ds (predictor) and y
+            (target).
+
+        scale_params: ScaleParams | None
+            Values that override scale_params calculated on data. Used when tuning the
+            model.
+        """
         self.data = data.reset_index(drop=True)
         self.data["ds"] = pd.to_datetime(self.data["ds"])
         self.data.sort_values("ds", inplace=True)
 
-        self.scale_params = {
+        self.scale_params: ScaleParams = {
             "mode": "maxabs",
             "y_min": 0,
             "y_max": self.data["y"].abs().max(),
