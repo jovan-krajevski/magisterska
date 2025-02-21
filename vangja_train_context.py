@@ -1,14 +1,15 @@
 from pathlib import Path
-from tqdm import tqdm
-import pandas as pd
 
-from vangja_simple.components import LinearTrend, FourierSeasonality, BetaConstant
-from vangja_simple.components.normal_constant import NormalConstant
+import pandas as pd
+from tqdm import tqdm
+
 from vangja.data_utils import (
-    generate_train_test_df_around_point,
     download_data,
+    generate_train_test_df_around_point,
     process_data,
 )
+from vangja_simple.components import BetaConstant, FourierSeasonality, LinearTrend
+from vangja_simple.components.normal_constant import NormalConstant
 
 print("Downloading data...")
 dfs = download_data(Path("./data"))
@@ -18,11 +19,11 @@ gspc_tickers = process_data(dfs[1])
 print("Data downloaded!")
 
 trend = LinearTrend(changepoint_range=1)
-decenial = FourierSeasonality(365.25 * 10, 4, allow_tune=True, tune_method="simple")
-presidential = FourierSeasonality(365.25 * 4, 9, allow_tune=True, tune_method="simple")
+# decenial = FourierSeasonality(365.25 * 10, 4, allow_tune=True, tune_method="simple")
+# presidential = FourierSeasonality(365.25 * 4, 9, allow_tune=True, tune_method="simple")
 yearly = FourierSeasonality(365.25, 10, allow_tune=True, tune_method="simple")
 weekly = FourierSeasonality(7, 3, allow_tune=False, tune_method="simple")
-model = trend ** (decenial + presidential + yearly + weekly)
+model = trend ** (weekly + yearly)
 
 point = "2014-01-01"
 
@@ -31,7 +32,7 @@ train_df_smp, test_df_smp, scales_smp = generate_train_test_df_around_point(
 )
 
 model.fit(train_df_smp, mcmc_samples=1000, nuts_sampler="numpyro")
-model.fit_params["trace"].to_netcdf(Path("./") / "models" / "40_d_p_y_w.nc")
+model.fit_params["trace"].to_netcdf(Path("./") / "models" / "40_y_w.nc")
 yhat = model.predict(365)
 print(model.metrics(test_df_smp, yhat)["mape"].iloc[0])
 
@@ -42,7 +43,7 @@ trend.changepoint_range = 0.8
 trend.allow_tune = True
 fit_params = model.fit_params
 
-model_positive = trend ** (decenial + presidential + yearly + weekly)
+model_positive = trend ** (weekly + yearly)
 model_positive.fit_params = fit_params
 model_positive.tuned_model = None
 
