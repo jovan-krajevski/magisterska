@@ -4,11 +4,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
+import pandas as pd
 
 from vangja_simple.time_series import TimeSeriesModel
 
 
 class FourierSeasonality(TimeSeriesModel):
+    model_idx: int | None = None
+
     def __init__(
         self,
         period,
@@ -50,7 +53,42 @@ class FourierSeasonality(TimeSeriesModel):
 
         return fourier_components
 
-    def definition(self, model, data, model_idxs):
+    def _add_beta(self, fit_params: dict, prev_model_idx: int):
+        if self.frozen:
+            return pm.Deterministic(
+                f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})",
+                pt.as_tensor_variable(
+                    fit_params["map_approx"][
+                        f"fs_{prev_model_idx} - beta(p={self.period},n={self.series_order})"
+                    ]
+                    if fit_params["map_approx"] is not None
+                    else fit_params["trace"]["posterior"][
+                        f"fs_{prev_model_idx} - beta(p={self.period},n={self.series_order})"
+                    ].mean(dim=["chain", "draw"])
+                ),
+            )
+
+        return pm.Normal(
+            f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})",
+            mu=self.beta_mean,
+            sigma=self.beta_sd,
+            shape=2 * self.series_order,
+        )
+
+    def definition(
+        self,
+        model: pm.Model,
+        data: pd.DataFrame,
+        model_idxs: dict[str, int],
+        fit_params: dict | None,
+    ):
+        prev_model_idx = self.model_idx
+        if self.frozen:
+            if fit_params is None:
+                raise NotImplementedError(
+                    "LinearTrend cannot be frozen before first fit!"
+                )
+
         model_idxs["fs"] = model_idxs.get("fs", 0)
         self.model_idx = model_idxs["fs"]
         model_idxs["fs"] += 1
@@ -58,18 +96,13 @@ class FourierSeasonality(TimeSeriesModel):
         x = self._fourier_series(data)
 
         with model:
-            beta = pm.Normal(
-                f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})",
-                mu=self.beta_mean,
-                sigma=self.beta_sd,
-                shape=2 * self.series_order,
-            )
+            beta = self._add_beta(fit_params, prev_model_idx)
 
         return pm.math.sum(x * beta, axis=1)
 
     def _tune(self, model, data, model_idxs, prev):
-        if not self.allow_tune:
-            return self.definition(model, data, model_idxs)
+        if not self.allow_tune or self.frozen:
+            return self.definition(model, data, model_idxs, prev)
 
         model_idxs["fs"] = model_idxs.get("fs", 0)
         self.model_idx = model_idxs["fs"]

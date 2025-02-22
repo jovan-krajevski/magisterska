@@ -1,37 +1,79 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pandas as pd
+import pytensor.tensor as pt
 
 from vangja_simple.time_series import TimeSeriesModel
 
 
 class NormalConstant(TimeSeriesModel):
+    model_idx: int | None = None
+
     def __init__(
         self,
-        mu=0,
-        sd=1,
-        allow_tune=False,
+        mu: float = 0,
+        sd: float = 1,
+        allow_tune: bool = False,
+        deterministic: float | None = None,
     ):
         self.mu = mu
         self.sd = sd
         self.allow_tune = allow_tune
+        self.deterministic = deterministic
 
-    def definition(self, model, data, model_idxs):
+    def _add_c(self, fit_params: dict | None, prev_model_idx: int):
+        if self.frozen:
+            if self.deterministic is not None:
+                return pm.Deterministic(
+                    f"nc_{self.model_idx} - normal(mu={self.mu},sd={self.sd})",
+                    pt.as_tensor_variable(self.deterministic),
+                )
+
+            return pm.Deterministic(
+                f"nc_{self.model_idx} - normal(mu={self.mu},sd={self.sd})",
+                pt.as_tensor_variable(
+                    fit_params["map_approx"][
+                        f"nc_{prev_model_idx} - normal(mu={self.mu},sd={self.sd})"
+                    ]
+                    if fit_params["map_approx"] is not None
+                    else fit_params["trace"]["posterior"][
+                        f"nc_{prev_model_idx} - normal(mu={self.mu},sd={self.sd})"
+                    ].mean(dim=["chain", "draw"])
+                ),
+            )
+
+        return pm.Normal(
+            f"nc_{self.model_idx} - normal(mu={self.mu},sd={self.sd})",
+            mu=self.mu,
+            sigma=self.sd,
+        )
+
+    def definition(
+        self,
+        model: pm.Model,
+        data: pd.DataFrame,
+        model_idxs: dict[str, int],
+        fit_params: dict | None,
+    ):
+        prev_model_idx = self.model_idx
+        if self.frozen:
+            if fit_params is None and self.deterministic is None:
+                raise NotImplementedError(
+                    "NormalConstant can be frozen before first fit if and only if deterministic is not None!"
+                )
+
         model_idxs["c"] = model_idxs.get("c", 0)
         self.model_idx = model_idxs["c"]
         model_idxs["c"] += 1
 
         with model:
-            c = pm.Normal(
-                f"nc_{self.model_idx} - normal(mu={self.mu},sd={self.sd})",
-                mu=self.mu,
-                sigma=self.sd,
-            )
+            c = self._add_c(fit_params, prev_model_idx)
 
         return c
 
     def _tune(self, model, data, model_idxs, prev):
-        return self.definition(model, data, model_idxs)
+        return self.definition(model, data, model_idxs, prev)
 
     def _get_initval(self, initvals, model: pm.Model):
         return {}

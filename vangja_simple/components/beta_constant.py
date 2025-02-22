@@ -1,36 +1,75 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
+import pandas as pd
+import pytensor.tensor as pt
 
 from vangja_simple.time_series import TimeSeriesModel
 
 
 class BetaConstant(TimeSeriesModel):
+    model_idx: int | None = None
+
     def __init__(
         self,
-        lower,
-        upper,
-        alpha=0.5,
-        beta=0.5,
-        allow_tune=False,
+        lower: float,
+        upper: float,
+        alpha: float = 0.5,
+        beta: float = 0.5,
+        allow_tune: bool = False,
+        deterministic: float | None = None,
     ):
         self.lower = lower
         self.upper = upper
         self.alpha = alpha
         self.beta = beta
         self.allow_tune = allow_tune
+        self.deterministic = deterministic
 
-    def definition(self, model, data, model_idxs):
+    def _add_beta(self, fit_params: dict | None, prev_model_idx: int):
+        if self.frozen:
+            if self.deterministic is not None:
+                return self.deterministic
+
+            return pm.Deterministic(
+                f"bc_{self.model_idx} - beta(alpha={self.alpha},beta={self.beta})",
+                pt.as_tensor_variable(
+                    fit_params["map_approx"][
+                        f"bc_{prev_model_idx} - beta(alpha={self.alpha},beta={self.beta})"
+                    ]
+                    if fit_params["map_approx"] is not None
+                    else fit_params["trace"]["posterior"][
+                        f"bc_{prev_model_idx} - beta(alpha={self.alpha},beta={self.beta})"
+                    ].mean(dim=["chain", "draw"])
+                ),
+            )
+
+        return pm.Beta(
+            f"bc_{self.model_idx} - beta(alpha={self.alpha},beta={self.beta})",
+            alpha=self.alpha,
+            beta=self.beta,
+        )
+
+    def definition(
+        self,
+        model: pm.Model,
+        data: pd.DataFrame,
+        model_idxs: dict[str, int],
+        fit_params: dict | None,
+    ):
+        prev_model_idx = self.model_idx
+        if self.frozen:
+            if fit_params is None and self.deterministic is None:
+                raise NotImplementedError(
+                    "BetaConstant can be frozen before first fit if and only if deterministic is not None!"
+                )
+
         model_idxs["c"] = model_idxs.get("c", 0)
         self.model_idx = model_idxs["c"]
         model_idxs["c"] += 1
 
         with model:
-            beta = pm.Beta(
-                f"bc_{self.model_idx} - beta(alpha={self.alpha},beta={self.beta})",
-                alpha=self.alpha,
-                beta=self.beta,
-            )
+            beta = self._add_beta(fit_params, prev_model_idx)
             c = pm.Deterministic(
                 f"bc_{self.model_idx} - c(l={self.lower},u={self.upper})",
                 beta * (self.upper - self.lower) + self.lower,
@@ -39,7 +78,7 @@ class BetaConstant(TimeSeriesModel):
         return c
 
     def _tune(self, model, data, model_idxs, prev):
-        return self.definition(model, data, model_idxs)
+        return self.definition(model, data, model_idxs, prev)
 
     def _get_initval(self, initvals, model: pm.Model):
         return {}

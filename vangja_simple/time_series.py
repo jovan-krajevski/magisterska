@@ -18,6 +18,17 @@ from vangja_simple.types import ScaleParams
 
 
 class TimeSeriesModel:
+    frozen: bool = False
+    fit_params: dict | None = None
+
+    def freeze(self):
+        """Prevent this component from fitting and tuning."""
+        self.frozen = True
+
+    def unfreeze(self):
+        """Allow this component to fit and tune."""
+        self.frozen = False
+
     def _process_data(
         self, data: pd.DataFrame, scale_params: ScaleParams | None = None
     ) -> None:
@@ -151,7 +162,8 @@ class TimeSeriesModel:
         self.tuned_model = None
         self.model_idxs = {}
         self._init_model(
-            model=self.model, mu=self.definition(self.model, self.data, self.model_idxs)
+            model=self.model,
+            mu=self.definition(self.model, self.data, self.model_idxs, self.fit_params),
         )
 
         self._fit_model(
@@ -253,7 +265,8 @@ class TimeSeriesModel:
         self.tuned_model = None
         self.model_idxs = {}
         self._init_model(
-            model=self.model, mu=self.definition(self.model, self.data, self.model_idxs)
+            model=self.model,
+            mu=self.definition(self.model, self.data, self.model_idxs, self.fit_params),
         )
 
         self.map_approx = map_approx

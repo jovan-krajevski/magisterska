@@ -8,6 +8,8 @@ from vangja_simple.time_series import TimeSeriesModel
 
 
 class LinearTrend(TimeSeriesModel):
+    model_idx: int | None = None
+
     def __init__(
         self,
         n_changepoints: int = 25,
@@ -35,35 +37,89 @@ class LinearTrend(TimeSeriesModel):
         self.override_slope_mean_for_tune = override_slope_mean_for_tune
         self.override_slope_sd_for_tune = override_slope_sd_for_tune
 
+    def _add_slope(self, fit_params: dict, prev_model_idx: int):
+        if self.frozen:
+            return pm.Deterministic(
+                f"lt_{self.model_idx} - slope",
+                pt.as_tensor_variable(
+                    fit_params["map_approx"][f"lt_{prev_model_idx} - slope"]
+                    if fit_params["map_approx"] is not None
+                    else fit_params["trace"]["posterior"][
+                        f"lt_{prev_model_idx} - slope"
+                    ].mean()
+                ),
+            )
+
+        return pm.Normal(f"lt_{self.model_idx} - slope", self.slope_mean, self.slope_sd)
+
+    def _add_intercept(self, fit_params: dict, prev_model_idx: int):
+        if self.frozen:
+            return pm.Deterministic(
+                f"lt_{self.model_idx} - intercept",
+                pt.as_tensor_variable(
+                    fit_params["map_approx"][f"lt_{prev_model_idx} - intercept"]
+                    if fit_params["map_approx"] is not None
+                    else fit_params["trace"]["posterior"][
+                        f"lt_{prev_model_idx} - intercept"
+                    ].mean()
+                ),
+            )
+
+        return pm.Normal(
+            f"lt_{self.model_idx} - intercept", self.intercept_mean, self.intercept_sd
+        )
+
+    def _add_delta(self, fit_params: dict, prev_model_idx: int):
+        if self.frozen:
+            return pm.Deterministic(
+                f"lt_{self.model_idx} - delta",
+                pt.as_tensor_variable(
+                    fit_params["map_approx"][f"lt_{prev_model_idx} - delta"]
+                    if fit_params["map_approx"] is not None
+                    else (
+                        fit_params["trace"]["posterior"][
+                            f"lt_{prev_model_idx} - delta"
+                        ].mean(dim=["chain", "draw"])
+                    )
+                ),
+            )
+
+        delta_sd = self.delta_sd
+        if self.delta_sd is None:
+            delta_sd = pm.Exponential(f"lt_{self.model_idx} - tau", 1.5)
+
+        return pm.Laplace(
+            f"lt_{self.model_idx} - delta",
+            self.delta_mean,
+            delta_sd,
+            shape=self.n_changepoints,
+        )
+
     def definition(
-        self, model: TimeSeriesModel, data: pd.DataFrame, model_idxs: dict[str, int]
+        self,
+        model: TimeSeriesModel,
+        data: pd.DataFrame,
+        model_idxs: dict[str, int],
+        fit_params: dict | None,
     ):
+        prev_model_idx = self.model_idx
+        if self.frozen:
+            if fit_params is None:
+                raise NotImplementedError(
+                    "LinearTrend cannot be frozen before first fit!"
+                )
+
         model_idxs["lt"] = model_idxs.get("lt", 0)
         self.model_idx = model_idxs["lt"]
         model_idxs["lt"] += 1
 
         with model:
             t = np.array(data["t"])
-            slope = pm.Normal(
-                f"lt_{self.model_idx} - slope", self.slope_mean, self.slope_sd
-            )
-            intercept = pm.Normal(
-                f"lt_{self.model_idx} - intercept",
-                self.intercept_mean,
-                self.intercept_sd,
-            )
+            slope = self._add_slope(fit_params, prev_model_idx)
+            intercept = self._add_intercept(fit_params, prev_model_idx)
 
             if self.n_changepoints > 0:
-                delta_sd = self.delta_sd
-                if self.delta_sd is None:
-                    delta_sd = pm.Exponential(f"lt_{self.model_idx} - tau", 1.5)
-
-                delta = pm.Laplace(
-                    f"lt_{self.model_idx} - delta",
-                    self.delta_mean,
-                    delta_sd,
-                    shape=self.n_changepoints,
-                )
+                delta = self._add_delta(fit_params, prev_model_idx)
 
                 hist_size = int(np.floor(data.shape[0] * self.changepoint_range))
                 cp_indexes = (
@@ -90,8 +146,8 @@ class LinearTrend(TimeSeriesModel):
         model_idxs: dict[str, int],
         prev: dict,
     ):
-        if not self.allow_tune:
-            return self.definition(model, data, model_idxs)
+        if not self.allow_tune or self.frozen:
+            return self.definition(model, data, model_idxs, prev)
 
         model_idxs["lt"] = model_idxs.get("lt", 0)
         self.model_idx = model_idxs["lt"]
