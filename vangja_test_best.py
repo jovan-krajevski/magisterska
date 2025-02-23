@@ -67,6 +67,7 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     model = trend ** (weekly + yearly)
     model.fit(train_df_smp)
 
+    slope_mean = model.map_approx[f"lt_{trend.model_idx} - slope"]
     weekly_mean = model.map_approx[
         f"fs_{weekly.model_idx} - beta(p={weekly.period},n={weekly.series_order})"
     ]
@@ -77,7 +78,7 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
 
     model_metrics = []
     model_maps = []
-    trend = LinearTrend(n_changepoints=0, allow_tune=True)
+    trend = LinearTrend(n_changepoints=0, allow_tune=True, override_slope_mean_for_tune=slope_mean)
     # decenial = FourierSeasonality(365.25 * 10, 4, allow_tune=True, tune_method="simple")
     # presidential = FourierSeasonality(365.25 * 4, 9, allow_tune=True, tune_method="simple")
     yearly = FourierSeasonality(
