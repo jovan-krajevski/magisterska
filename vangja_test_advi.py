@@ -53,17 +53,48 @@ print("DATA READY")
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    parent_path = Path("./") / "out" / "vangja" / "test30"
+    parent_path = Path("./") / "out" / "vangja" / "test32"
     csv_path = parent_path / f"{points}.csv"
     maps_path = parent_path / f"{points}_maps.csv"
     if csv_path.is_file():
         continue
 
-    model_metrics = []
-    model_maps = []
-    trend = LinearTrend(n_changepoints=0, allow_tune=True)
+    train_df_smp, test_df_smp, scales_smp = generate_train_test_df_around_point(
+        window=365 * 40, horizon=365, dfs=smp, for_prophet=False, point=point
+    )
+    trend = LinearTrend(changepoint_range=1)
     yearly = FourierSeasonality(365.25, 10, allow_tune=True, tune_method="simple")
     weekly = FourierSeasonality(7, 3, allow_tune=True, tune_method="simple")
+    model = trend ** (weekly + yearly)
+    model.fit(train_df_smp)
+
+    slope_mean = model.map_approx[f"lt_{trend.model_idx} - slope"]
+    weekly_mean = model.map_approx[
+        f"fs_{weekly.model_idx} - beta(p={weekly.period},n={weekly.series_order})"
+    ]
+    yearly_mean = model.map_approx[
+        f"fs_{yearly.model_idx} - beta(p={yearly.period},n={yearly.series_order})"
+    ]
+
+    model_metrics = []
+    model_maps = []
+    trend = LinearTrend(
+        n_changepoints=0, allow_tune=True, override_slope_mean_for_tune=slope_mean
+    )
+    yearly = FourierSeasonality(
+        365.25,
+        10,
+        allow_tune=True,
+        tune_method="simple",
+        override_beta_mean_for_tune=yearly_mean,
+    )
+    weekly = FourierSeasonality(
+        7,
+        3,
+        allow_tune=True,
+        tune_method="simple",
+        override_beta_mean_for_tune=weekly_mean,
+    )
     model = trend ** (weekly + yearly)
     model.load_model(Path("./") / "models" / "test30" / f"{points}")
     # model.scale_params = {
