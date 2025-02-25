@@ -67,7 +67,9 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     model = trend ** (weekly + constant * yearly)
     model.fit(train_df_smp)
 
-    shutil.rmtree(parent_path / "model")
+    if (parent_path / "model").exists():
+        shutil.rmtree(parent_path / "model")
+
     model.save_model(parent_path / "model")
 
     model_metrics = []
