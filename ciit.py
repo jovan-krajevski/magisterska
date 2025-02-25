@@ -67,13 +67,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     model = trend ** (weekly + constant * yearly)
     model.fit(train_df_smp)
 
-    if (parent_path / "model").exists():
-        shutil.rmtree(parent_path / "model")
-
-    if (parent_path / "model1").exists():
-        shutil.rmtree(parent_path / "model1")
-
-    model.save_model(parent_path / "model")
+    first_objs = model.save_model(parent_path / "model", True)
 
     model_metrics = []
     model_maps = []
@@ -96,18 +90,17 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         weekly = FourierSeasonality(7, 3)
         constant = NormalConstant(0, 0.3, deterministic=1)
         model = trend ** (weekly + constant * yearly)
-        model.load_model(parent_path / "model")
+        model.load_model(parent_path / "model", first_objs)
 
         yearly.freeze()
         constant.freeze()
         model.tune(train_df_tickers, progressbar=False)
-        model.save_model(parent_path / "model1")
+        second_objs = model.save_model(parent_path / "model1", True)
 
         trend.freeze()
         weekly.freeze()
         constant.unfreeze()
-        model.load_model(parent_path / "model1")
-        shutil.rmtree(parent_path / "model1")
+        model.load_model(parent_path / "model1", second_objs)
         model.tune(train_df_tickers, progressbar=False)
 
         yhat = model.predict(365)
@@ -132,9 +125,3 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     gc.collect()
     # jax.clear_backends()
     jax.clear_caches()
-
-    if (parent_path / "model").exists():
-        shutil.rmtree(parent_path / "model")
-
-    if (parent_path / "model1").exists():
-        shutil.rmtree(parent_path / "model1")

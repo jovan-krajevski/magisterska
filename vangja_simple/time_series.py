@@ -14,6 +14,7 @@ from sklearn.metrics import (
     mean_squared_error,
     root_mean_squared_error,
 )
+
 from vangja_simple.types import ScaleParams
 
 
@@ -226,7 +227,17 @@ class TimeSeriesModel:
             nuts_sampler=nuts_sampler,
         )
 
-    def save_model(self, filepath: Path):
+    def save_model(self, filepath: Path, return_objs: bool = False):
+        model = {
+            "scale_params": self.scale_params,
+            "map_approx": self.map_approx,
+            "method": self.method,
+            "samples": self.samples,
+        }
+
+        if return_objs:
+            return model, self.data, self.trace
+
         filepath.mkdir(parents=True)
         with open(filepath / "model.pkl", "wb") as f:
             pickle.dump(
@@ -245,28 +256,43 @@ class TimeSeriesModel:
         if self.trace is not None:
             self.trace.to_netcdf(filepath / "trace.nc")
 
-    def load_model(self, filepath: Path):
+    def load_model(self, filepath: Path, objs: tuple | None = None):
         self.fit_params = {}
 
-        with open(filepath / "model.pkl", "rb") as f:
-            pkl = pickle.load(f)
-            self.scale_params = pkl["scale_params"]
-            map_approx = pkl["map_approx"]
-            self.method = pkl["method"]
-            self.samples = pkl["samples"]
+        if objs is not None:
+            pkl = objs[0]
+        else:
+            with open(filepath / "model.pkl", "rb") as f:
+                pkl = pickle.load(f)
 
-        with open(filepath / "data.pkl", "rb") as f:
-            self.data = pickle.load(f)
+        self.scale_params = pkl["scale_params"]
+        map_approx = pkl["map_approx"]
+        self.method = pkl["method"]
+        self.samples = pkl["samples"]
+
+        if objs is not None:
+            self.data = objs[1]
+        else:
+            with open(filepath / "data.pkl", "rb") as f:
+                self.data = pickle.load(f)
 
         trace_path = filepath / "trace.nc"
-        trace = az.from_netcdf(trace_path) if trace_path.exists() else None
+        if objs is not None:
+            trace = objs[2]
+        else:
+            trace = az.from_netcdf(trace_path) if trace_path.exists() else None
 
         self.model = pm.Model()
         self.tuned_model = None
         self.model_idxs = {}
         self._init_model(
             model=self.model,
-            mu=self.definition(self.model, self.data, self.model_idxs, {"map_approx": map_approx, "trace": trace}),
+            mu=self.definition(
+                self.model,
+                self.data,
+                self.model_idxs,
+                {"map_approx": map_approx, "trace": trace},
+            ),
         )
 
         self.map_approx = map_approx
