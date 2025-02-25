@@ -125,4 +125,4 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     del model
     gc.collect()
     # jax.clear_backends()
-    # jax.clear_caches()
+    jax.clear_caches()
