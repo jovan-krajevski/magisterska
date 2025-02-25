@@ -98,11 +98,13 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         yearly.freeze()
         constant.freeze()
         model.tune(train_df_tickers, progressbar=False)
+        model.save_model(parent_path / "model1")
 
         trend.freeze()
         weekly.freeze()
         constant.unfreeze()
-        model.tuned_model = None
+        model.load_model(parent_path / "model1")
+        shutil.rmtree(parent_path / "model1")
         model.tune(train_df_tickers, progressbar=False)
 
         yhat = model.predict(365)
