@@ -48,9 +48,9 @@ print("DATA READY")
 #         ][key][:, :, 0, :]
 
 
-for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
+for point in pd.date_range(f"{year_start}", f"{year_end}"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    parent_path = Path("./") / "out" / "vangja" / "test_ciit_0"
+    parent_path = Path("./") / "out" / "vangja" / "test_ciit_1"
     csv_path = parent_path / f"{points}.csv"
     maps_path = parent_path / f"{points}_maps.csv"
     if csv_path.is_file():
@@ -102,6 +102,7 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
         trend.freeze()
         weekly.freeze()
         constant.unfreeze()
+        model.tuned_model = None
         model.tune(train_df_tickers, progressbar=False)
 
         yhat = model.predict(365)
