@@ -1,8 +1,9 @@
 import argparse
-from pathlib import Path
 import gc
-import jax
+import shutil
+from pathlib import Path
 
+import jax
 import pandas as pd
 from tqdm import tqdm
 
@@ -18,7 +19,6 @@ from vangja_simple.components import (
     LinearTrend,
 )
 from vangja_simple.components.normal_constant import NormalConstant
-import shutil
 
 parser = argparse.ArgumentParser(
     prog="Vangja Test", description="Run Vangja on test set", epilog="---"
@@ -48,9 +48,9 @@ print("DATA READY")
 #         ][key][:, :, 0, :]
 
 
-for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
+for point in pd.date_range(f"{year_start}", f"{year_end}"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    parent_path = Path("./") / "out" / "vangja" / "test_ciit_0"
+    parent_path = Path("./") / "out" / "vangja" / "test_ciit_1"
     csv_path = parent_path / f"{points}.csv"
     maps_path = parent_path / f"{points}_maps.csv"
     if csv_path.is_file():
@@ -69,6 +69,9 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
 
     if (parent_path / "model").exists():
         shutil.rmtree(parent_path / "model")
+
+    if (parent_path / "model1").exists():
+        shutil.rmtree(parent_path / "model1")
 
     model.save_model(parent_path / "model")
 
@@ -98,10 +101,13 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
         yearly.freeze()
         constant.freeze()
         model.tune(train_df_tickers, progressbar=False)
+        model.save_model(parent_path / "model1")
 
         trend.freeze()
         weekly.freeze()
         constant.unfreeze()
+        model.load_model(parent_path / "model1")
+        shutil.rmtree(parent_path / "model1")
         model.tune(train_df_tickers, progressbar=False)
 
         yhat = model.predict(365)
@@ -126,3 +132,9 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     gc.collect()
     # jax.clear_backends()
     jax.clear_caches()
+
+    if (parent_path / "model").exists():
+        shutil.rmtree(parent_path / "model")
+
+    if (parent_path / "model1").exists():
+        shutil.rmtree(parent_path / "model1")

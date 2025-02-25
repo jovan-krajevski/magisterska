@@ -266,7 +266,7 @@ class TimeSeriesModel:
         self.model_idxs = {}
         self._init_model(
             model=self.model,
-            mu=self.definition(self.model, self.data, self.model_idxs, self.fit_params),
+            mu=self.definition(self.model, self.data, self.model_idxs, {"map_approx": map_approx, "trace": trace}),
         )
 
         self.map_approx = map_approx
