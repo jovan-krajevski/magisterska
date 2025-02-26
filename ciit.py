@@ -92,6 +92,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
             point=points,
         )
         if check is None:
+            second_objs.append(None)
             continue
 
         train_df_tickers, test_df_tickers, scales_tickers = check
