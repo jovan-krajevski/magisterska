@@ -72,6 +72,17 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     model_metrics = []
     model_maps = []
 
+    trend = LinearTrend(n_changepoints=0)
+    yearly = FourierSeasonality(365.25, 10)
+    weekly = FourierSeasonality(7, 3)
+    constant = NormalConstant(0, 0.3, deterministic=1)
+    model = trend ** (weekly + constant * yearly)
+    model.load_model(parent_path / "model", first_objs)
+
+    yearly.freeze()
+    constant.freeze()
+    second_objs = []
+
     for gspc_ticker in tqdm(gspc_tickers):
         check = generate_train_test_df_around_point(
             window=91,
@@ -84,23 +95,37 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
             continue
 
         train_df_tickers, test_df_tickers, scales_tickers = check
-
-        trend = LinearTrend(n_changepoints=0)
-        yearly = FourierSeasonality(365.25, 10)
-        weekly = FourierSeasonality(7, 3)
-        constant = NormalConstant(0, 0.3, deterministic=1)
-        model = trend ** (weekly + constant * yearly)
-        model.load_model(parent_path / "model", first_objs)
-
-        yearly.freeze()
-        constant.freeze()
         model.tune(train_df_tickers, progressbar=False)
-        second_objs = model.save_model(parent_path / "model1", True)
+        second_objs.append(model.save_model(parent_path / "model1", True))
 
-        trend.freeze()
-        weekly.freeze()
-        constant.unfreeze()
-        model.load_model(parent_path / "model1", second_objs)
+    trend = LinearTrend(n_changepoints=0)
+    yearly = FourierSeasonality(365.25, 10)
+    weekly = FourierSeasonality(7, 3)
+    constant = NormalConstant(0, 0.3, deterministic=1)
+    model = trend ** (weekly + constant * yearly)
+    model.load_model(parent_path / "model", first_objs)
+
+    yearly.freeze()
+    trend.freeze()
+    weekly.freeze()
+
+    for gspc_ticker, second_obj in zip(tqdm(gspc_tickers), second_objs):
+        check = generate_train_test_df_around_point(
+            window=91,
+            horizon=365,
+            dfs=[gspc_ticker],
+            for_prophet=False,
+            point=points,
+        )
+        if check is None:
+            continue
+
+        train_df_tickers, test_df_tickers, scales_tickers = check
+        model.fit_params["map_approx"] = second_obj[0]["map_approx"]
+        model.fit_params["trace"] = second_obj[2]
+        model.map_approx = second_obj[0]["map_approx"]
+        model.trace = second_obj[2]
+        # model.load_model(parent_path / "model1", second_obj)
         model.tune(train_df_tickers, progressbar=False)
 
         yhat = model.predict(365)
