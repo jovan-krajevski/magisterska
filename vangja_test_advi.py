@@ -53,7 +53,7 @@ print("DATA READY")
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    parent_path = Path("./") / "out" / "vangja" / "test32"
+    parent_path = Path("./") / "out" / "vangja" / "test40"
     csv_path = parent_path / f"{points}.csv"
     maps_path = parent_path / f"{points}_maps.csv"
     if csv_path.is_file():
@@ -87,6 +87,7 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
         allow_tune=True,
         tune_method="simple",
         override_beta_mean_for_tune=yearly_mean,
+        shift_for_tune=True,
     )
     weekly = FourierSeasonality(
         7,
@@ -94,6 +95,7 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
         allow_tune=True,
         tune_method="simple",
         override_beta_mean_for_tune=weekly_mean,
+        shift_for_tune=True,
     )
     model = trend ** (weekly + yearly)
     model.load_model(Path("./") / "models" / "test30" / f"{points}")

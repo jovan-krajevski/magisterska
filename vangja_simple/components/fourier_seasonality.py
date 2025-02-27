@@ -2,9 +2,9 @@ from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
-import pandas as pd
 
 from vangja_simple.time_series import TimeSeriesModel
 
@@ -23,6 +23,7 @@ class FourierSeasonality(TimeSeriesModel):
         tune_method: Literal["simple", "offset", "linear", "same"] = "simple",
         override_beta_mean_for_tune: bool | np.ndarray = False,
         override_beta_sd_for_tune: bool | np.ndarray = False,
+        shift_for_tune: bool = False,
     ):
         self.period = period
         self.series_order = series_order
@@ -34,8 +35,9 @@ class FourierSeasonality(TimeSeriesModel):
         self.tune_method = tune_method
         self.override_beta_mean_for_tune = override_beta_mean_for_tune
         self.override_beta_sd_for_tune = override_beta_sd_for_tune
+        self.shift_for_tune = shift_for_tune
 
-    def _fourier_series(self, data):
+    def _fourier_series(self, data: pd.DataFrame, shift=None):
         # convert to days since epoch
         NANOSECONDS_TO_SECONDS = 1000 * 1000 * 1000
         t = (
@@ -43,13 +45,26 @@ class FourierSeasonality(TimeSeriesModel):
             // NANOSECONDS_TO_SECONDS
             / (3600 * 24.0)
         )
+        if shift is not None:
+            t += shift
 
         x_T = t * np.pi * 2
         fourier_components = np.empty((data["ds"].shape[0], 2 * self.series_order))
+        if shift is not None and type(shift) is not np.ndarray:
+            fourier_components = pt.as_tensor_variable(fourier_components)
+
         for i in range(self.series_order):
             c = x_T * (i + 1) / self.period
-            fourier_components[:, 2 * i] = np.sin(c)
-            fourier_components[:, (2 * i) + 1] = np.cos(c)
+            if type(fourier_components) is np.ndarray:
+                fourier_components[:, 2 * i] = np.sin(c)
+                fourier_components[:, (2 * i) + 1] = np.cos(c)
+            else:
+                fourier_components = pt.set_subtensor(
+                    fourier_components[:, 2 * i], np.sin(c)
+                )
+                fourier_components = pt.set_subtensor(
+                    fourier_components[:, (2 * i) + 1], np.cos(c)
+                )
 
         return fourier_components
 
@@ -108,9 +123,12 @@ class FourierSeasonality(TimeSeriesModel):
         self.model_idx = model_idxs["fs"]
         model_idxs["fs"] += 1
 
-        x = self._fourier_series(data)
-
         with model:
+            shift = None
+            if self.shift_for_tune:
+                shift = pm.Normal(f"fs_{self.model_idx} - shift", mu=0, sigma=1)
+
+            x = self._fourier_series(data, shift)
             beta_key = (
                 f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
             )
@@ -195,7 +213,9 @@ class FourierSeasonality(TimeSeriesModel):
             map_approx[
                 f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
             ],
-            self._fourier_series(future),
+            self._fourier_series(
+                future, map_approx.get(f"fs_{self.model_idx} - shift", None)
+            ),
         )
 
         return future[f"fs_{self.model_idx}"]
@@ -207,7 +227,10 @@ class FourierSeasonality(TimeSeriesModel):
             ]
             .to_numpy()[:, :]
             .mean(0),
-            self._fourier_series(future),
+            self._fourier_series(
+                future,
+                trace["posterior"].get(f"fs_{self.model_idx} - shift", None).mean(),
+            ),
         ).T.mean(0)
 
         return future[f"fs_{self.model_idx}"]
