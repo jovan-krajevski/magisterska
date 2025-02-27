@@ -50,9 +50,12 @@ print("DATA READY")
 
 for point in pd.date_range(f"{year_start}", f"{year_end}"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    parent_path = Path("./") / "out" / "vangja" / "test_ciit_1"
+    parent_path = Path("./") / "out" / "vangja" / "test_ciit_2"
+    parent_path_2 = Path("./") / "out" / "vangja" / "test_ciit_3"
     csv_path = parent_path / f"{points}.csv"
     maps_path = parent_path / f"{points}_maps.csv"
+    csv_path_2 = parent_path_2 / f"{points}.csv"
+    maps_path_2 = parent_path_2 / f"{points}_maps.csv"
     if csv_path.is_file():
         continue
 
@@ -62,7 +65,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     trend = LinearTrend(changepoint_range=1)
     yearly = FourierSeasonality(365.25, 10)
     weekly = FourierSeasonality(7, 3)
-    constant = NormalConstant(0, 0.3, deterministic=1)
+    constant = NormalConstant(1, 0.1, deterministic=1)
     constant.freeze()
     model = trend ** (weekly + constant * yearly)
     model.fit(train_df_smp)
@@ -71,11 +74,13 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
 
     model_metrics = []
     model_maps = []
+    model_metrics_2 = []
+    model_maps_2 = []
 
     trend = LinearTrend(n_changepoints=0)
     yearly = FourierSeasonality(365.25, 10)
     weekly = FourierSeasonality(7, 3)
-    constant = NormalConstant(0, 0.3, deterministic=1)
+    constant = NormalConstant(1, 0.1, deterministic=1)
     model = trend ** (weekly + constant * yearly)
     model.load_model(parent_path / "model", first_objs)
 
@@ -98,11 +103,27 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         train_df_tickers, test_df_tickers, scales_tickers = check
         model.tune(train_df_tickers, progressbar=False)
         second_objs.append(model.save_model(parent_path / "model1", True))
+        yhat = model.predict(365)
+        model_metrics_2.append(
+            model.metrics(
+                test_df_tickers, yhat, label=train_df_tickers["series"].iloc[0]
+            )
+        )
+        model_maps_2.append(model.map_approx)
+
+    final_metrics = pd.concat(model_metrics_2)
+    final_maps = pd.DataFrame.from_records(model_maps_2, index=final_metrics.index)
+    final_metrics = final_metrics.sort_index()
+    final_maps = final_maps.sort_index()
+    final_metrics.to_csv(csv_path_2)
+    final_maps.to_csv(maps_path_2)
+
+    print(f"{final_metrics['mape'].mean()}")
 
     trend = LinearTrend(n_changepoints=0)
     yearly = FourierSeasonality(365.25, 10)
     weekly = FourierSeasonality(7, 3)
-    constant = NormalConstant(0, 0.3, deterministic=1)
+    constant = NormalConstant(1, 0.1, deterministic=1)
     model = trend ** (weekly + constant * yearly)
     model.load_model(parent_path / "model", first_objs)
 
