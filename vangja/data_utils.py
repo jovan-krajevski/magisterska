@@ -67,7 +67,7 @@ def process_data(data: pd.DataFrame) -> list[pd.DataFrame]:
         df["series"] = ticker
         dfs.append(df)
 
-    return dfs
+    return sorted(dfs, key=lambda x: x["series"].iloc[0])
 
 
 def generate_train_test_df(
