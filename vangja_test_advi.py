@@ -53,9 +53,10 @@ print("DATA READY")
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    parent_path = Path("./") / "out" / "vangja" / "test40"
+    parent_path = Path("./") / "out" / "vangja" / "test60"
     csv_path = parent_path / f"{points}.csv"
     maps_path = parent_path / f"{points}_maps.csv"
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
     if csv_path.is_file():
         continue
 
@@ -63,7 +64,11 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
         window=365 * 40, horizon=365, dfs=smp, for_prophet=False, point=point
     )
     trend = LinearTrend(changepoint_range=1)
+    # presidential = FourierSeasonality(
+    #     365.25 * 4, 9, allow_tune=True, tune_method="simple"
+    # )
     yearly = FourierSeasonality(365.25, 10, allow_tune=True, tune_method="simple")
+    # quarterly = FourierSeasonality(365.25 / 4, 5, allow_tune=True, tune_method="simple")
     weekly = FourierSeasonality(7, 3, allow_tune=True, tune_method="simple")
     model = trend ** (weekly + yearly)
     model.fit(train_df_smp)
@@ -72,32 +77,59 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     weekly_mean = model.map_approx[
         f"fs_{weekly.model_idx} - beta(p={weekly.period},n={weekly.series_order})"
     ]
+    # quarterly_mean = model.map_approx[
+    #     f"fs_{quarterly.model_idx} - beta(p={quarterly.period},n={quarterly.series_order})"
+    # ]
     yearly_mean = model.map_approx[
         f"fs_{yearly.model_idx} - beta(p={yearly.period},n={yearly.series_order})"
     ]
+    # presidential_mean = model.map_approx[
+    #     f"fs_{presidential.model_idx} - beta(p={presidential.period},n={presidential.series_order})"
+    # ]
 
     model_metrics = []
     model_maps = []
     trend = LinearTrend(
-        n_changepoints=0, allow_tune=True, override_slope_mean_for_tune=slope_mean
+        n_changepoints=0, allow_tune=False, override_slope_mean_for_tune=slope_mean
     )
+    # presidential = FourierSeasonality(
+    #     365.25 * 4,
+    #     9,
+    #     allow_tune=True,
+    #     tune_method="simple",
+    #     override_beta_mean_for_tune=presidential_mean,
+    #     shift_for_tune=False,
+    #     shrinkage_strength=1,
+    # )
     yearly = FourierSeasonality(
         365.25,
         10,
         allow_tune=True,
         tune_method="simple",
         override_beta_mean_for_tune=yearly_mean,
-        shift_for_tune=True,
+        shift_for_tune=False,
+        shrinkage_strength=1,
     )
+    # quarterly = FourierSeasonality(
+    #     365.25 / 4,
+    #     5,
+    #     allow_tune=True,
+    #     tune_method="simple",
+    #     override_beta_mean_for_tune=quarterly_mean,
+    #     shift_for_tune=False,
+    #     shrinkage_strength=100,
+    # )
     weekly = FourierSeasonality(
         7,
         3,
         allow_tune=True,
         tune_method="simple",
         override_beta_mean_for_tune=weekly_mean,
-        shift_for_tune=True,
+        shift_for_tune=False,
+        shrinkage_strength=1,
     )
-    model = trend ** (weekly + yearly)
+    constant = NormalConstant(0, 1 / 3)
+    model = trend ** (weekly + constant * yearly)
     model.load_model(Path("./") / "models" / "test30" / f"{points}")
     # model.scale_params = {
     #     **model.scale_params,
