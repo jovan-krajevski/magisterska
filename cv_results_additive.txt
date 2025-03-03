@@ -1,0 +1,102 @@
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.8, 'delta_sd': 0.005} -- 0.1 --
+smp mape: 0.09114009997951257
+1y mape: 0.12290488254631095
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.8, 'delta_sd': 0.005} -- 1.0 --
+smp mape: 0.0828828091671876
+1y mape: 0.12109012140391948
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.8, 'delta_sd': 0.005} -- 10.0 --
+smp mape: 0.08067660457104223
+1y mape: 0.12191504882327128
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.8, 'delta_sd': 0.05} -- 0.01 --
+smp mape: 0.08751105701863152
+1y mape: 0.12389126966345226
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.8, 'delta_sd': 0.05} -- 0.1 --
+smp mape: 0.08814189319349229
+1y mape: 0.12272907169241988
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.8, 'delta_sd': 0.05} -- 1.0 --
+smp mape: 0.08738947350096216
+1y mape: 0.12484436641576992
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.8, 'delta_sd': 0.05} -- 10.0 --
+smp mape: 0.08803402814881277
+1y mape: 0.12183577009797847
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.8, 'delta_sd': 0.5} -- 0.01 --
+smp mape: 0.08753597098589079
+1y mape: 0.12344526274104141
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.8, 'delta_sd': 0.5} -- 0.1 --
+smp mape: 0.08713295240856014
+1y mape: 0.124009197299942
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.8, 'delta_sd': 0.5} -- 1.0 --
+smp mape: 0.08714929892851248
+1y mape: 0.12335380029013868
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.8, 'delta_sd': 0.5} -- 10.0 --
+smp mape: 0.08767145753188654
+1y mape: 0.12405681325162007
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.9, 'delta_sd': 0.005} -- 0.01 --
+smp mape: 0.07903280110675195
+1y mape: 0.12031429644234512
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.9, 'delta_sd': 0.005} -- 0.1 --
+smp mape: 0.07938528130417648
+1y mape: 0.12238262671627569
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.9, 'delta_sd': 0.005} -- 1.0 --
+smp mape: 0.08230317350894979
+1y mape: 0.1251533918303015
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.9, 'delta_sd': 0.005} -- 10.0 --
+smp mape: 0.0799958172528966
+1y mape: 0.12348268804134568
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.9, 'delta_sd': 0.05} -- 0.01 --
+smp mape: 0.06438602621026109
+1y mape: 0.12279716508894661
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.9, 'delta_sd': 0.05} -- 0.1 --
+smp mape: 0.06336558010922722
+1y mape: 0.12400407753050453
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.9, 'delta_sd': 0.05} -- 1.0 --
+smp mape: 0.06031686427913678
+1y mape: 0.12466125046035634
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.9, 'delta_sd': 0.05} -- 10.0 --
+smp mape: 0.06304896626788027
+1y mape: 0.12367841952930489
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.9, 'delta_sd': 0.5} -- 0.01 --
+smp mape: 0.06151232752272266
+1y mape: 0.1248924241238254
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.9, 'delta_sd': 0.5} -- 0.1 --
+smp mape: 0.05948031710724934
+1y mape: 0.12362687962038169
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.9, 'delta_sd': 0.5} -- 1.0 --
+smp mape: 0.0610164277419145
+1y mape: 0.12244181634349714
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 0.9, 'delta_sd': 0.5} -- 10.0 --
+smp mape: 0.06174870531605907
+1y mape: 0.12398056348120336
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 1, 'delta_sd': 0.005} -- 0.01 --
+smp mape: 0.07730472412369135
+1y mape: 0.12393335134980711
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 1, 'delta_sd': 0.005} -- 0.1 --
+smp mape: 0.08127126313774216
+1y mape: 0.12340064127492321
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 1, 'delta_sd': 0.005} -- 1.0 --
+smp mape: 0.08112923093977392
+1y mape: 0.1234494688161271
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 1, 'delta_sd': 0.005} -- 10.0 --
+smp mape: 0.0841949642423083
+1y mape: 0.12309851359708504
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 1, 'delta_sd': 0.05} -- 0.01 --
+smp mape: 0.06863709108928903
+1y mape: 0.12135058623637633
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 1, 'delta_sd': 0.05} -- 0.1 --
+smp mape: 0.06339945205743579
+1y mape: 0.12134101188630408
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 1, 'delta_sd': 0.05} -- 1.0 --
+smp mape: 0.06577665065331095
+1y mape: 0.12161544127630015
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 1, 'delta_sd': 0.05} -- 10.0 --
+smp mape: 0.06786237517061088
+1y mape: 0.12228141590316902
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 1, 'delta_sd': 0.5} -- 0.01 --
+smp mape: 0.05001869177502318
+1y mape: 0.12124881379804488
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 1, 'delta_sd': 0.5} -- 0.1 --
+smp mape: 0.05825568650102644
+1y mape: 0.12283500356974635
+-- 3650 -- {'n_changepoints': 25, 'changepoint_range': 1, 'delta_sd': 0.5} -- 1.0 --
+smp mape: 0.04599224250589468
+1y mape: 0.12500769124692132
