@@ -1,0 +1,5 @@
+trend allow_tune=T
+yearly allow_tune=T
+weekly allow_tune=T
+constant 0, 1/3
+trend ** (weekly + constant * yearly)
