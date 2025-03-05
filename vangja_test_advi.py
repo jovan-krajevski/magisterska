@@ -53,7 +53,7 @@ print("DATA READY")
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    parent_path = Path("./") / "out" / "vangja" / "test60"
+    parent_path = Path("./") / "out" / "vangja" / "test64"
     csv_path = parent_path / f"{points}.csv"
     maps_path = parent_path / f"{points}_maps.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -90,7 +90,7 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     model_metrics = []
     model_maps = []
     trend = LinearTrend(
-        n_changepoints=0, allow_tune=False, override_slope_mean_for_tune=slope_mean
+        n_changepoints=0, allow_tune=True, override_slope_mean_for_tune=slope_mean
     )
     # presidential = FourierSeasonality(
     #     365.25 * 4,
@@ -128,8 +128,8 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
         shift_for_tune=False,
         shrinkage_strength=1,
     )
-    constant = NormalConstant(0, 1 / 3)
-    model = trend ** (weekly + constant * yearly)
+    constant = NormalConstant(1, 0.1)
+    model = trend ** (weekly + yearly)
     model.load_model(Path("./") / "models" / "test30" / f"{points}")
     # model.scale_params = {
     #     **model.scale_params,
