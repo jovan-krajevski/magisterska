@@ -53,7 +53,7 @@ print("DATA READY")
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    parent_path = Path("./") / "out" / "vangja" / "test64"
+    parent_path = Path("./") / "out" / "vangja" / "test70"
     csv_path = parent_path / f"{points}.csv"
     maps_path = parent_path / f"{points}_maps.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -90,7 +90,7 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     model_metrics = []
     model_maps = []
     trend = LinearTrend(
-        n_changepoints=0, allow_tune=True, override_slope_mean_for_tune=slope_mean
+        n_changepoints=0, allow_tune=False, override_slope_mean_for_tune=slope_mean
     )
     # presidential = FourierSeasonality(
     #     365.25 * 4,
@@ -128,14 +128,17 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
         shift_for_tune=False,
         shrinkage_strength=1,
     )
-    constant = NormalConstant(1, 0.1)
-    model = trend ** (weekly + yearly)
+    constant = NormalConstant(0, 1 / 3)
+    model = trend ** (weekly + constant * yearly)
     model.load_model(Path("./") / "models" / "test30" / f"{points}")
     # model.scale_params = {
     #     **model.scale_params,
     #     "ds_min": scale_params["ds_min"],
     #     "ds_max": scale_params["ds_max"],
     # }
+
+    min_smp_y = train_df_smp["y"].iloc[-91:].min()
+    max_smp_y = train_df_smp["y"].iloc[-91:].max()
 
     for gspc_ticker in tqdm(gspc_tickers):
         check = generate_train_test_df_around_point(
@@ -149,8 +152,18 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
             continue
 
         train_df_tickers, test_df_tickers, scales_tickers = check
+        min_y = train_df_tickers["y"].min()
+        max_y = train_df_tickers["y"].max()
+        train_df_tickers["y"] = (train_df_tickers["y"] - min_y) / (max_y - min_y) * (
+            max_smp_y - min_smp_y
+        ) + min_smp_y
+
         model.tune(train_df_tickers, progressbar=False)
         yhat = model.predict(365)
+
+        yhat["yhat"] = (yhat["yhat"] - min_smp_y) / (max_smp_y - min_smp_y) * (
+            max_y - min_y
+        ) + min_y
         model_metrics.append(
             model.metrics(
                 test_df_tickers, yhat, label=train_df_tickers["series"].iloc[0]
