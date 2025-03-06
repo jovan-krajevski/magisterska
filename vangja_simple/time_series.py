@@ -124,6 +124,7 @@ class TimeSeriesModel:
                         options={"maxiter": 1e4},
                     )
                 except:
+                    breakpoint()
                     print("ooops")
                     self.map_approx = pm.find_MAP(
                         start=initval_dict,
