@@ -113,15 +113,24 @@ class TimeSeriesModel:
             pm.set_data({"data": self.data["y"]})
 
             if self.method == "mapx":
-                self.map_approx = pmx.find_MAP(
-                    method="L-BFGS-B",
-                    use_grad=True,
-                    initvals=initval_dict,
-                    progressbar=progressbar,
-                    gradient_backend="jax",
-                    compile_kwargs={"mode": "JAX"},
-                    options={"maxiter": 1e4},
-                )
+                try:
+                    self.map_approx = pmx.find_MAP(
+                        method="L-BFGS-B",
+                        use_grad=True,
+                        initvals=initval_dict,
+                        progressbar=progressbar,
+                        gradient_backend="jax",
+                        compile_kwargs={"mode": "JAX"},
+                        options={"maxiter": 1e4},
+                    )
+                except:
+                    print("ooops")
+                    self.map_approx = pm.find_MAP(
+                        start=initval_dict,
+                        method="L-BFGS-B",
+                        progressbar=progressbar,
+                        maxeval=1e-4,
+                    )
             elif self.method == "map":
                 self.map_approx = pm.find_MAP(
                     start=initval_dict,
