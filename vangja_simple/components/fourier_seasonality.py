@@ -21,7 +21,7 @@ class FourierSeasonality(TimeSeriesModel):
         beta_sd=10,
         shrinkage_strength=100,
         allow_tune=False,
-        tune_method: Literal["simple", "offset", "linear", "same"] = "simple",
+        tune_method: Literal["simple", "prior_from_idata"] = "simple",
         override_beta_mean_for_tune: bool | np.ndarray = False,
         override_beta_sd_for_tune: bool | np.ndarray = False,
         shift_for_tune: bool = False,
@@ -116,7 +116,7 @@ class FourierSeasonality(TimeSeriesModel):
 
         return pm.math.sum(x * beta, axis=1)
 
-    def _tune(self, model, data, model_idxs, prev):
+    def _tune(self, model, data, model_idxs, prev, priors):
         if not self.allow_tune or self.frozen:
             return self.definition(model, data, model_idxs, prev)
 
@@ -169,78 +169,76 @@ class FourierSeasonality(TimeSeriesModel):
                         .std(axis=(1, 0))
                     ) / self.shrinkage_strength
 
+            beta_mu = pt.as_tensor_variable(prev[beta_mu_key])
+
             if self.tune_method == "simple":
-                beta_mu = pt.as_tensor_variable(prev[beta_mu_key])
                 beta = pm.Normal(
                     beta_key,
                     mu=beta_mu,
                     sigma=pt.as_tensor_variable(prev[beta_sd_key]),
                     shape=2 * self.series_order,
                 )
-                old = pm.math.sum(reg_x * beta_mu, axis=1)
-                new = pm.math.sum(reg_x * beta, axis=1)
-                lam = (
-                    2 * self.period / data.shape[0]
-                    if self.period > 2 * data.shape[0]
-                    else 0
-                )
-                pm.Potential(
-                    f"{beta_key} - loss",
-                    # pm.math.dot(old, old)
-                    # - pm.math.new(new, new)
-                    # -pm.math.dot(beta_mu, beta),
-                    lam
-                    * pm.math.minimum(0, pm.math.dot(old, old) - pm.math.dot(new, new)),
-                )
-                # old_norm = pm.math.sqrt(pm.math.dot(old, old))
-                # new_norm = pm.math.sqrt(pm.math.dot(new, new))
-                # old_norm = pm.math.abs(old).mean()
-                # new_norm = pm.math.abs(new).mean()
-                # return new / new_norm * pm.math.minimum(old_norm, new_norm)
-                # return new
-
-            if self.tune_method == "offset":
-                context_beta = pm.Normal(
-                    f"fs_{self.model_idx} - context_beta(p={self.period},n={self.series_order})",
-                    mu=pt.as_tensor_variable(prev[beta_mu_key]),
-                    sigma=pt.as_tensor_variable(prev[beta_sd_key]),
-                    shape=2 * self.series_order,
-                )
-                offset_beta = pm.HalfNormal(
-                    f"fs_{self.model_idx} - offset_beta(p={self.period},n={self.series_order})",
-                    sigma=pt.as_tensor_variable(prev[beta_sd_key]),
-                    shape=2 * self.series_order,
-                )
-                beta = pm.Deterministic(beta_key, context_beta + offset_beta)
-
-            if self.tune_method == "linear":
-                context_beta = pm.Normal(
-                    f"fs_{self.model_idx} - context_beta(p={self.period},n={self.series_order})",
-                    mu=pt.as_tensor_variable(prev[beta_mu_key]),
-                    sigma=pt.as_tensor_variable(prev[beta_sd_key]),
-                    shape=2 * self.series_order,
-                )
-                scale_beta = pm.Normal(
-                    f"fs_{self.model_idx} - scale_beta(p={self.period},n={self.series_order})",
-                    mu=0,
-                    sigma=1 / 3,
-                    shape=2 * self.series_order,
-                )
-                offset_beta = pm.HalfNormal(
-                    f"fs_{self.model_idx} - offset_beta(p={self.period},n={self.series_order})",
-                    sigma=pt.as_tensor_variable(prev[beta_sd_key]),
-                    shape=2 * self.series_order,
-                )
-                beta = pm.Deterministic(
-                    beta_key, context_beta * scale_beta + offset_beta
+            elif self.tune_method == "prior_from_idata":
+                beta = pm.Deterministic(beta_key, priors[f"prior_{beta_key}"])
+            else:
+                raise NotImplementedError(
+                    f"Tune method {self.tune_method} is not implemented!"
                 )
 
-            if self.tune_method == "same":
-                beta = pm.Deterministic(
-                    beta_key, pt.as_tensor_variable(prev[beta_mu_key])
-                )
+            old = pm.math.sum(reg_x * beta_mu, axis=1)
+            new = pm.math.sum(reg_x * beta, axis=1)
+            lam = (
+                2 * self.period / data.shape[0]
+                if self.period > 2 * data.shape[0]
+                else 0
+            )
+            pm.Potential(
+                f"{beta_key} - loss",
+                lam * pm.math.minimum(0, pm.math.dot(old, old) - pm.math.dot(new, new)),
+            )
 
         return pm.math.sum(x * beta, axis=1)
+
+        # if self.tune_method == "offset":
+        #     context_beta = pm.Normal(
+        #         f"fs_{self.model_idx} - context_beta(p={self.period},n={self.series_order})",
+        #         mu=pt.as_tensor_variable(prev[beta_mu_key]),
+        #         sigma=pt.as_tensor_variable(prev[beta_sd_key]),
+        #         shape=2 * self.series_order,
+        #     )
+        #     offset_beta = pm.HalfNormal(
+        #         f"fs_{self.model_idx} - offset_beta(p={self.period},n={self.series_order})",
+        #         sigma=pt.as_tensor_variable(prev[beta_sd_key]),
+        #         shape=2 * self.series_order,
+        #     )
+        #     beta = pm.Deterministic(beta_key, context_beta + offset_beta)
+
+        # if self.tune_method == "linear":
+        #     context_beta = pm.Normal(
+        #         f"fs_{self.model_idx} - context_beta(p={self.period},n={self.series_order})",
+        #         mu=pt.as_tensor_variable(prev[beta_mu_key]),
+        #         sigma=pt.as_tensor_variable(prev[beta_sd_key]),
+        #         shape=2 * self.series_order,
+        #     )
+        #     scale_beta = pm.Normal(
+        #         f"fs_{self.model_idx} - scale_beta(p={self.period},n={self.series_order})",
+        #         mu=0,
+        #         sigma=1 / 3,
+        #         shape=2 * self.series_order,
+        #     )
+        #     offset_beta = pm.HalfNormal(
+        #         f"fs_{self.model_idx} - offset_beta(p={self.period},n={self.series_order})",
+        #         sigma=pt.as_tensor_variable(prev[beta_sd_key]),
+        #         shape=2 * self.series_order,
+        #     )
+        #     beta = pm.Deterministic(
+        #         beta_key, context_beta * scale_beta + offset_beta
+        #     )
+
+        # if self.tune_method == "same":
+        #     beta = pm.Deterministic(
+        #         beta_key, pt.as_tensor_variable(prev[beta_mu_key])
+        #     )
 
     def _get_initval(self, initvals, model: pm.Model):
         return {}
@@ -288,6 +286,9 @@ class FourierSeasonality(TimeSeriesModel):
             future[f"fs_{self.model_idx}"][-int(self.period) :],
             lw=1,
         )
+
+    def needs_priors(self):
+        return self.tune_method == "prior_from_idata"
 
     def __str__(self):
         return f"FS(p={self.period},n={self.series_order},at={self.allow_tune})"

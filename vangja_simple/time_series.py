@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc_extras as pmx
+from pkg_resources import non_empty_lines
 from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -113,25 +114,15 @@ class TimeSeriesModel:
             pm.set_data({"data": self.data["y"]})
 
             if self.method == "mapx":
-                try:
-                    self.map_approx = pmx.find_MAP(
-                        method="L-BFGS-B",
-                        use_grad=True,
-                        initvals=initval_dict,
-                        progressbar=progressbar,
-                        gradient_backend="jax",
-                        compile_kwargs={"mode": "JAX"},
-                        options={"maxiter": 1e4},
-                    )
-                except:
-                    breakpoint()
-                    print("ooops")
-                    self.map_approx = pm.find_MAP(
-                        start=initval_dict,
-                        method="L-BFGS-B",
-                        progressbar=progressbar,
-                        maxeval=1e-4,
-                    )
+                self.map_approx = pmx.find_MAP(
+                    method="L-BFGS-B",
+                    use_grad=True,
+                    initvals=initval_dict,
+                    progressbar=progressbar,
+                    gradient_backend="jax",
+                    compile_kwargs={"mode": "JAX"},
+                    options={"maxiter": 1e4},
+                )
             elif self.method == "map":
                 self.map_approx = pm.find_MAP(
                     start=initval_dict,
@@ -214,6 +205,20 @@ class TimeSeriesModel:
         if self.tuned_model is None:
             self.model_idxs = {}
             self.tuned_model = pm.Model()
+            # create priors if trace exists and some component has a
+            # prior_from_idata tune method
+            priors = None
+            if self.fit_params["trace"] is not None and self.needs_priors():
+                with self.tuned_model:
+                    priors = pmx.utils.prior.prior_from_idata(
+                        self.fit_params["trace"],
+                        name="priors",
+                        # add a "prior_" prefix to vars
+                        **{
+                            f"{var}": f"prior_{var}"
+                            for var in self.fit_params["trace"]["posterior"].data_vars
+                        },
+                    )
             self._init_model(
                 model=self.tuned_model,
                 mu=self._tune(
@@ -221,6 +226,7 @@ class TimeSeriesModel:
                     self.data,
                     self.model_idxs,
                     self.fit_params,
+                    priors,
                 ),
             )
 
@@ -391,6 +397,9 @@ class TimeSeriesModel:
             }
         )
 
+    def needs_priors(self):
+        return False
+
     def __add__(self, other):
         return AdditiveTimeSeries(self, other)
 
@@ -410,11 +419,42 @@ class TimeSeriesModel:
         return SimpleMultiplicativeTimeSeries(other, self)
 
 
-class AdditiveTimeSeries(TimeSeriesModel):
+class CombinedTimeSeries(TimeSeriesModel):
     def __init__(self, left, right):
         self.left = left
         self.right = right
 
+    def _get_initval(self, *args, **kwargs):
+        left = {}
+        right = {}
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left._get_initval(*args, **kwargs)
+
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right._get_initval(*args, **kwargs)
+
+        return {**left, **right}
+
+    def _plot(self, *args, **kwargs):
+        if not (type(self.left) is int or type(self.left) is float):
+            self.left._plot(*args, **kwargs)
+
+        if not (type(self.right) is int or type(self.right) is float):
+            self.right._plot(*args, **kwargs)
+
+    def needs_priors(self, *args, **kwargs):
+        left = False
+        right = False
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left.needs_priors(*args, **kwargs)
+
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.left.needs_priors(*args, **kwargs)
+
+        return left or right
+
+
+class AdditiveTimeSeries(CombinedTimeSeries):
     def definition(self, *args, **kwargs):
         left = self.left
         if not (type(self.left) is int or type(self.left) is float):
@@ -447,34 +487,12 @@ class AdditiveTimeSeries(TimeSeriesModel):
             right = self.right._predict(*args, **kwargs)
 
         return left + right
-
-    def _get_initval(self, *args, **kwargs):
-        left = {}
-        right = {}
-        if not (type(self.left) is int or type(self.left) is float):
-            left = self.left._get_initval(*args, **kwargs)
-
-        if not (type(self.right) is int or type(self.right) is float):
-            right = self.right._get_initval(*args, **kwargs)
-
-        return {**left, **right}
-
-    def _plot(self, *args, **kwargs):
-        if not (type(self.left) is int or type(self.left) is float):
-            self.left._plot(*args, **kwargs)
-
-        if not (type(self.right) is int or type(self.right) is float):
-            self.right._plot(*args, **kwargs)
 
     def __str__(self):
         return f"{self.left} + {self.right}"
 
 
-class MultiplicativeTimeSeries(TimeSeriesModel):
-    def __init__(self, left, right):
-        self.left = left
-        self.right = right
-
+class MultiplicativeTimeSeries(CombinedTimeSeries):
     def definition(self, *args, **kwargs):
         left = self.left
         if not (type(self.left) is int or type(self.left) is float):
@@ -507,24 +525,6 @@ class MultiplicativeTimeSeries(TimeSeriesModel):
             right = self.right._predict(*args, **kwargs)
 
         return left * (1 + right)
-
-    def _get_initval(self, *args, **kwargs):
-        left = {}
-        right = {}
-        if not (type(self.left) is int or type(self.left) is float):
-            left = self.left._get_initval(*args, **kwargs)
-
-        if not (type(self.right) is int or type(self.right) is float):
-            right = self.right._get_initval(*args, **kwargs)
-
-        return {**left, **right}
-
-    def _plot(self, *args, **kwargs):
-        if not (type(self.left) is int or type(self.left) is float):
-            self.left._plot(*args, **kwargs)
-
-        if not (type(self.right) is int or type(self.right) is float):
-            self.right._plot(*args, **kwargs)
 
     def __str__(self):
         left = f"{self.left}"
@@ -534,11 +534,7 @@ class MultiplicativeTimeSeries(TimeSeriesModel):
         return f"{left} * (1 + {self.right})"
 
 
-class SimpleMultiplicativeTimeSeries(TimeSeriesModel):
-    def __init__(self, left, right):
-        self.left = left
-        self.right = right
-
+class SimpleMultiplicativeTimeSeries(CombinedTimeSeries):
     def definition(self, *args, **kwargs):
         left = self.left
         if not (type(self.left) is int or type(self.left) is float):
@@ -571,24 +567,6 @@ class SimpleMultiplicativeTimeSeries(TimeSeriesModel):
             right = self.right._predict(*args, **kwargs)
 
         return left * right
-
-    def _get_initval(self, *args, **kwargs):
-        left = {}
-        right = {}
-        if not (type(self.left) is int or type(self.left) is float):
-            left = self.left._get_initval(*args, **kwargs)
-
-        if not (type(self.right) is int or type(self.right) is float):
-            right = self.right._get_initval(*args, **kwargs)
-
-        return {**left, **right}
-
-    def _plot(self, *args, **kwargs):
-        if not (type(self.left) is int or type(self.left) is float):
-            self.left._plot(*args, **kwargs)
-
-        if not (type(self.right) is int or type(self.right) is float):
-            self.right._plot(*args, **kwargs)
 
     def __str__(self):
         left = f"{self.left}"

@@ -77,7 +77,7 @@ class BetaConstant(TimeSeriesModel):
 
         return c
 
-    def _tune(self, model, data, model_idxs, prev):
+    def _tune(self, model, data, model_idxs, prev, priors):
         return self.definition(model, data, model_idxs, prev)
 
     def _get_initval(self, initvals, model: pm.Model):

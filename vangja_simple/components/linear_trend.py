@@ -145,6 +145,7 @@ class LinearTrend(TimeSeriesModel):
         data: pd.DataFrame,
         model_idxs: dict[str, int],
         prev: dict,
+        priors,
     ):
         if not self.allow_tune or self.frozen:
             return self.definition(model, data, model_idxs, prev)
