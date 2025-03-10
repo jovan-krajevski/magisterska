@@ -259,16 +259,17 @@ class FourierSeasonality(TimeSeriesModel):
         return future[f"fs_{self.model_idx}"]
 
     def _predict_mcmc(self, future, trace):
+        shift = trace["posterior"].get(f"fs_{self.model_idx} - shift", None)
+        if shift is not None:
+            shift = shift.mean()
+
         future[f"fs_{self.model_idx}"] = self._det_seasonality_posterior(
             trace["posterior"][
                 f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
             ]
             .to_numpy()[:, :]
             .mean(0),
-            self._fourier_series(
-                future,
-                trace["posterior"].get(f"fs_{self.model_idx} - shift", None).mean(),
-            ),
+            self._fourier_series(future, shift),
         ).T.mean(0)
 
         return future[f"fs_{self.model_idx}"]
