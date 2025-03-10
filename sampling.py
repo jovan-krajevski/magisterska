@@ -27,6 +27,6 @@ for method in [
     "asvgd",
 ]:
     start = time.time()
-    model.fit(train_df, method="nuts", samples=2000)
+    model.fit(train_df, method=method, samples=2000)
     print(f"Method: {method}; {time.time() - start:.2f}s")
     model.save_model(Path("./") / "models" / "methods" / f"{method}")
