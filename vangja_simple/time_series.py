@@ -141,7 +141,11 @@ class TimeSeriesModel:
                     maxeval=1e-4,
                 )
             elif self.method in ["fullrank_advi", "advi", "svgd", "asvgd"]:
-                approx = pm.fit(50000, method=self.method, start=initval_dict)
+                approx = pm.fit(
+                    50000,
+                    method=self.method,
+                    start=initval_dict if self.method != "asvgd" else None,
+                )
                 self.trace = approx.sample(draws=self.samples)
             elif self.method in ["nuts", "metropolis", "demetropolisz"]:
                 step = pm.NUTS()

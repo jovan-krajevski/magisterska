@@ -21,13 +21,13 @@ model = (
 model.fit(train_df)
 
 for method in [
-    "mapx",
-    "metropolis",
-    "demetropolisz",
-    "nuts",
-    "fullrank_advi",
-    "advi",
-    "svgd",
+    # "mapx",
+    # "metropolis",
+    # "demetropolisz",
+    # "nuts",
+    # "fullrank_advi",
+    # "advi",
+    # "svgd",
     "asvgd",
 ]:
     start = time.time()
