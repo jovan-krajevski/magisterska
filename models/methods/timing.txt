@@ -5,3 +5,4 @@ Method: nuts; 167.38s
 Method: fullrank_advi; 11.80s
 Method: advi; 9.58s
 Method: svgd; 670.67s
+Method: asvgd; 4854.62s
