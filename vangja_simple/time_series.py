@@ -93,7 +93,17 @@ class TimeSeriesModel:
         self,
         model,
         sigma_sd=0.5,
-        method: Literal["mapx", "map", "fullrank_advi", "nuts"] = "mapx",
+        method: Literal[
+            "mapx",
+            "map",
+            "fullrank_advi",
+            "advi",
+            "svgd",
+            "asvgd",
+            "nuts",
+            "metropolis",
+            "demetropolisz",
+        ] = "mapx",
         samples=0,
         chains=4,
         cores=4,
@@ -130,16 +140,24 @@ class TimeSeriesModel:
                     progressbar=progressbar,
                     maxeval=1e-4,
                 )
-            elif self.method == "fullrank_advi":
-                approx = pm.fit(50000, method="fullrank_advi", start=initval_dict)
+            elif self.method in ["fullrank_advi", "advi", "svgd", "asvgd"]:
+                approx = pm.fit(50000, method=self.method, start=initval_dict)
                 self.trace = approx.sample(draws=self.samples)
-            elif self.method == "nuts":
+            elif self.method in ["nuts", "metropolis", "demetropolisz"]:
+                step = pm.NUTS()
+                if self.method == "metropolis":
+                    step = pm.Metropolis()
+
+                if self.method == "demetropolisz":
+                    step = pm.DEMetropolisZ()
+
                 self.trace = pm.sample(
                     self.samples,
                     chains=chains,
                     cores=cores,
                     nuts_sampler=nuts_sampler,
                     initvals=initval_dict,
+                    step=step,
                 )
             else:
                 raise NotImplementedError(
@@ -150,7 +168,17 @@ class TimeSeriesModel:
         self,
         data: pd.DataFrame,
         sigma_sd: float = 0.5,
-        method: Literal["mapx", "map", "fullrank_advi", "nuts"] = "mapx",
+        method: Literal[
+            "mapx",
+            "map",
+            "fullrank_advi",
+            "advi",
+            "svgd",
+            "asvgd",
+            "nuts",
+            "metropolis",
+            "demetropolisz",
+        ] = "mapx",
         samples: int = 0,
         chains: int = 4,
         cores: int = 4,
@@ -185,7 +213,17 @@ class TimeSeriesModel:
         self,
         data: pd.DataFrame,
         sigma_sd: float = 0.5,
-        method: Literal["mapx", "map", "fullrank_advi", "nuts"] = "mapx",
+        method: Literal[
+            "mapx",
+            "map",
+            "fullrank_advi",
+            "advi",
+            "svgd",
+            "asvgd",
+            "nuts",
+            "metropolis",
+            "demetropolisz",
+        ] = "mapx",
         samples: int = 0,
         chains: int = 4,
         cores: int = 4,
