@@ -17,7 +17,11 @@ model = (
     + FourierSeasonality(period=365.25, series_order=10)
     + FourierSeasonality(period=7, series_order=3)
 )
+# map fit just to load model in memory
+model.fit(train_df)
+
 for method in [
+    "mapx",
     "metropolis",
     "demetropolisz",
     "nuts",
@@ -28,5 +32,7 @@ for method in [
 ]:
     start = time.time()
     model.fit(train_df, method=method, samples=2000)
-    print(f"Method: {method}; {time.time() - start:.2f}s")
     model.save_model(Path("./") / "models" / "methods" / f"{method}")
+
+    with open(Path("./") / "models" / "methods" / "timing.txt", "a") as f:
+        f.write(f"Method: {method}; {time.time() - start:.2f}s\n")
