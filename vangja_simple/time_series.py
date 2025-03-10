@@ -145,6 +145,7 @@ class TimeSeriesModel:
                     50000,
                     method=self.method,
                     start=initval_dict if self.method != "asvgd" else None,
+                    progressbar=progressbar,
                 )
                 self.trace = approx.sample(draws=self.samples)
             elif self.method in ["nuts", "metropolis", "demetropolisz"]:
