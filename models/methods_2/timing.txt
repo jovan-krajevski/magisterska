@@ -1,0 +1,2 @@
+Method: metropolis; 723.45s
+Method: demetropolisz; 36.97s
