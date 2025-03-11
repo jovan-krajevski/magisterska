@@ -18,17 +18,17 @@ model = (
 )
 
 for method in [
-    "mapx",
+    # "mapx",
     "metropolis",
     "demetropolisz",
-    "nuts",
-    "fullrank_advi",
-    "advi",
-    "svgd",
-    "asvgd",
+    # "nuts",
+    # "fullrank_advi",
+    # "advi",
+    # "svgd",
+    # "asvgd",
 ]:
-    model.load_model(Path("./") / "models" / "methods" / f"{method}")
+    model.load_model(Path("./") / "models" / "methods_2" / f"{method}")
     yhat = model.predict(365)
     metrics = model.metrics(test_df, yhat)
-    metrics.to_csv(Path("./") / "models" / "methods" / f"{method}_metrics.csv")
+    metrics.to_csv(Path("./") / "models" / "methods_2" / f"{method}_metrics.csv")
     print(metrics)
