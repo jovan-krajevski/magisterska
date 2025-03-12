@@ -57,7 +57,7 @@ prophet_model = prophet_trend**prophet_weekly
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    parent_path = Path("./") / "out" / "vangja" / "test71"
+    parent_path = Path("./") / "out" / "vangja" / "test81"
     csv_path = parent_path / f"{points}.csv"
     maps_path = parent_path / f"{points}_maps.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -94,7 +94,7 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     model_metrics = []
     model_maps = []
     trend = LinearTrend(
-        n_changepoints=0, allow_tune=False, override_slope_mean_for_tune=slope_mean
+        n_changepoints=0, allow_tune=True, override_slope_mean_for_tune=slope_mean
     )
     # presidential = FourierSeasonality(
     #     365.25 * 4,
@@ -109,7 +109,7 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
         365.25,
         10,
         allow_tune=True,
-        tune_method="simple",
+        tune_method="prior_from_idata",
         override_beta_mean_for_tune=yearly_mean,
         shift_for_tune=False,
         shrinkage_strength=1,
@@ -127,13 +127,13 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
         7,
         3,
         allow_tune=True,
-        tune_method="simple",
+        tune_method="prior_from_idata",
         override_beta_mean_for_tune=weekly_mean,
         shift_for_tune=False,
         shrinkage_strength=1,
     )
     constant = NormalConstant(1, 0.1)
-    model = trend ** (weekly + constant * yearly)
+    model = trend ** (weekly + yearly)
     model.load_model(Path("./") / "models" / "test30" / f"{points}")
     # model.scale_params = {
     #     **model.scale_params,
