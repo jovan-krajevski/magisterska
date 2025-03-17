@@ -1,3 +1,5 @@
+from typing import Literal
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
@@ -21,6 +23,7 @@ class LinearTrend(TimeSeriesModel):
         delta_mean: float = 0,
         delta_sd: None | float = 0.05,
         allow_tune: bool = False,
+        tune_method: Literal["simple", "prior_from_idata"] = "simple",
         override_slope_mean_for_tune: bool | np.ndarray = False,
         override_slope_sd_for_tune: bool | np.ndarray = False,
     ):
@@ -34,6 +37,7 @@ class LinearTrend(TimeSeriesModel):
         self.delta_sd = delta_sd
 
         self.allow_tune = allow_tune
+        self.tune_method = tune_method
         self.override_slope_mean_for_tune = override_slope_mean_for_tune
         self.override_slope_sd_for_tune = override_slope_sd_for_tune
 
@@ -98,6 +102,7 @@ class LinearTrend(TimeSeriesModel):
     def definition(
         self,
         model: TimeSeriesModel,
+        other_components: dict,
         data: pd.DataFrame,
         model_idxs: dict[str, int],
         fit_params: dict | None,
@@ -142,13 +147,14 @@ class LinearTrend(TimeSeriesModel):
     def _tune(
         self,
         model: TimeSeriesModel,
+        other_components: dict,
         data: pd.DataFrame,
         model_idxs: dict[str, int],
         prev: dict,
         priors,
     ):
         if not self.allow_tune or self.frozen:
-            return self.definition(model, data, model_idxs, prev)
+            return self.definition(model, other_components, data, model_idxs, prev)
 
         model_idxs["lt"] = model_idxs.get("lt", 0)
         self.model_idx = model_idxs["lt"]
@@ -159,19 +165,33 @@ class LinearTrend(TimeSeriesModel):
             delta_key = f"lt_{self.model_idx} - delta"
             slope_mu_key = f"{slope_key} - beta_mu"
             slope_sd_key = f"{slope_key} - beta_sd"
+            prev_delta_key = f"lt_{self.model_idx} - prev_delta"
+
+            if prev_delta_key not in prev:
+                prev[prev_delta_key] = 0
+                if prev["trace"] is None:
+                    prev[prev_delta_key] = (
+                        prev["map_approx"][delta_key].sum()
+                        if delta_key in prev["map_approx"]
+                        else 0
+                    )
+                else:
+                    prev[prev_delta_key] = (
+                        (prev["trace"]["posterior"][delta_key].to_numpy().sum(axis=2))
+                        if delta_key in prev["trace"]["posterior"]
+                        else 0
+                    )
+
             if self.override_slope_mean_for_tune is not False:
                 prev[slope_mu_key] = self.override_slope_mean_for_tune
             else:
                 if slope_mu_key not in prev:
                     prev[slope_mu_key] = (
-                        prev["map_approx"][slope_key]
-                        + prev["map_approx"][delta_key].sum()
+                        prev["map_approx"][slope_key] + prev[prev_delta_key]
                         if prev["trace"] is None
                         else (
                             prev["trace"]["posterior"][slope_key].to_numpy()
-                            + prev["trace"]["posterior"][delta_key]
-                            .to_numpy()
-                            .sum(axis=2)
+                            + prev[prev_delta_key]
                         ).mean()
                     )
 
@@ -184,17 +204,22 @@ class LinearTrend(TimeSeriesModel):
                         if prev["trace"] is None
                         else (
                             prev["trace"]["posterior"][slope_key].to_numpy()
-                            + prev["trace"]["posterior"][delta_key]
-                            .to_numpy()
-                            .sum(axis=2)
+                            + prev[prev_delta_key]
                         ).std()
                     )
 
-            slope = pm.Normal(
-                f"lt_{self.model_idx} - slope",
-                pt.as_tensor_variable(prev[slope_mu_key]),
-                pt.as_tensor_variable(prev[slope_sd_key]),
-            )
+            if self.tune_method == "simple":
+                slope = pm.Normal(
+                    slope_key,
+                    pt.as_tensor_variable(prev[slope_mu_key]),
+                    pt.as_tensor_variable(prev[slope_sd_key]),
+                )
+            elif self.tune_method == "prior_from_idata":
+                slope = pm.Deterministic(slope_key, priors[f"prior_{slope_key}"])
+            else:
+                raise NotImplementedError(
+                    f"Tune method {self.tune_method} is not implemented!"
+                )
 
             intercept = pm.Normal(
                 f"lt_{self.model_idx} - intercept",
@@ -216,7 +241,7 @@ class LinearTrend(TimeSeriesModel):
             ),
         }
 
-    def _predict_map(self, future, map_approx):
+    def _predict_map(self, future, map_approx, other_components):
         if f"lt_{self.model_idx} - delta" not in map_approx:
             future[f"lt_{self.model_idx}"] = np.array(
                 map_approx[f"lt_{self.model_idx} - slope"] * future["t"]
@@ -241,7 +266,7 @@ class LinearTrend(TimeSeriesModel):
 
         return future[f"lt_{self.model_idx}"]
 
-    def _predict_mcmc(self, future, trace):
+    def _predict_mcmc(self, future, trace, other_components):
         slope = (
             trace["posterior"][f"lt_{self.model_idx} - slope"].to_numpy()[:, :].mean(0)
         )
@@ -279,6 +304,9 @@ class LinearTrend(TimeSeriesModel):
         plt.plot(future["ds"], future[f"lt_{self.model_idx}"], lw=1)
 
         plt.legend()
+
+    def needs_priors(self, *args, **kwargs):
+        return self.tune_method == "prior_from_idata"
 
     def __str__(self):
         return f"LT(n={self.n_changepoints},r={self.changepoint_range},at={self.allow_tune})"
