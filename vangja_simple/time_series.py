@@ -163,6 +163,7 @@ class TimeSeriesModel:
                     nuts_sampler=nuts_sampler,
                     initvals=initval_dict,
                     step=step,
+                    progressbar=progressbar,
                 )
             else:
                 raise NotImplementedError(
@@ -196,9 +197,16 @@ class TimeSeriesModel:
         self.model = pm.Model()
         self.tuned_model = None
         self.model_idxs = {}
+        self.other_components = {}
         self._init_model(
             model=self.model,
-            mu=self.definition(self.model, self.data, self.model_idxs, self.fit_params),
+            mu=self.definition(
+                self.model,
+                self.other_components,
+                self.data,
+                self.model_idxs,
+                self.fit_params,
+            ),
         )
 
         self._fit_model(
@@ -247,6 +255,7 @@ class TimeSeriesModel:
         # cache model if tuned multiple times with same self.fit_params
         if self.tuned_model is None:
             self.model_idxs = {}
+            self.other_components = {}
             self.tuned_model = pm.Model()
             # create priors if trace exists and some component has a
             # prior_from_idata tune method
@@ -266,6 +275,7 @@ class TimeSeriesModel:
                 model=self.tuned_model,
                 mu=self._tune(
                     self.tuned_model,
+                    self.other_components,
                     self.data,
                     self.model_idxs,
                     self.fit_params,
@@ -292,6 +302,7 @@ class TimeSeriesModel:
             "map_approx": self.map_approx,
             "method": self.method,
             "samples": self.samples,
+            "other_components": self.other_components,
         }
 
         if return_objs:
@@ -299,15 +310,7 @@ class TimeSeriesModel:
 
         filepath.mkdir(parents=True)
         with open(filepath / "model.pkl", "wb") as f:
-            pickle.dump(
-                {
-                    "scale_params": self.scale_params,
-                    "map_approx": self.map_approx,
-                    "method": self.method,
-                    "samples": self.samples,
-                },
-                f,
-            )
+            pickle.dump(model, f)
 
         with open(filepath / "data.pkl", "wb") as f:
             pickle.dump(self.data, f)
@@ -328,6 +331,7 @@ class TimeSeriesModel:
         map_approx = pkl["map_approx"]
         self.method = pkl["method"]
         self.samples = pkl["samples"]
+        self.other_components = pkl.get("other_components", {})
 
         if objs is not None:
             self.data = objs[1]
@@ -348,6 +352,7 @@ class TimeSeriesModel:
             model=self.model,
             mu=self.definition(
                 self.model,
+                self.other_components,
                 self.data,
                 self.model_idxs,
                 {"map_approx": map_approx, "trace": trace},
@@ -386,7 +391,13 @@ class TimeSeriesModel:
 
     def predict(self, days):
         future = self._make_future_df(days)
-        forecasts = self._predict(future, self.method, self.map_approx, self.trace)
+        forecasts = self._predict(
+            future,
+            self.method,
+            self.map_approx,
+            self.trace,
+            self.other_components,
+        )
 
         future["yhat"] = forecasts * self.scale_params["y_max"]
         for model_type, model_cnt in self.model_idxs.items():
@@ -399,11 +410,11 @@ class TimeSeriesModel:
 
         return future
 
-    def _predict(self, future, method, map_approx, trace):
+    def _predict(self, future, method, map_approx, trace, other_components):
         if method in ["mapx", "map"]:
-            return self._predict_map(future, map_approx)
+            return self._predict_map(future, map_approx, other_components)
 
-        return self._predict_mcmc(future, trace)
+        return self._predict_mcmc(future, trace, other_components)
 
     def plot(self, future, y_true=None):
         plt.figure(figsize=(14, 100 * 6))
@@ -440,7 +451,7 @@ class TimeSeriesModel:
             }
         )
 
-    def needs_priors(self):
+    def needs_priors(self, *args, **kwargs):
         return False
 
     def __add__(self, other):
@@ -492,7 +503,7 @@ class CombinedTimeSeries(TimeSeriesModel):
             left = self.left.needs_priors(*args, **kwargs)
 
         if not (type(self.right) is int or type(self.right) is float):
-            right = self.left.needs_priors(*args, **kwargs)
+            right = self.right.needs_priors(*args, **kwargs)
 
         return left or right
 

@@ -94,6 +94,7 @@ class FourierSeasonality(TimeSeriesModel):
     def definition(
         self,
         model: pm.Model,
+        other_components: dict,
         data: pd.DataFrame,
         model_idxs: dict[str, int],
         fit_params: dict | None,
@@ -116,9 +117,9 @@ class FourierSeasonality(TimeSeriesModel):
 
         return pm.math.sum(x * beta, axis=1)
 
-    def _tune(self, model, data, model_idxs, prev, priors):
+    def _tune(self, model, other_components, data, model_idxs, prev, priors):
         if not self.allow_tune or self.frozen:
-            return self.definition(model, data, model_idxs, prev)
+            return self.definition(model, other_components, data, model_idxs, prev)
 
         model_idxs["fs"] = model_idxs.get("fs", 0)
         self.model_idx = model_idxs["fs"]
@@ -246,7 +247,7 @@ class FourierSeasonality(TimeSeriesModel):
     def _det_seasonality_posterior(self, beta, x):
         return np.dot(x, beta.T)
 
-    def _predict_map(self, future, map_approx):
+    def _predict_map(self, future, map_approx, other_components):
         future[f"fs_{self.model_idx}"] = self._det_seasonality_posterior(
             map_approx[
                 f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
@@ -258,7 +259,7 @@ class FourierSeasonality(TimeSeriesModel):
 
         return future[f"fs_{self.model_idx}"]
 
-    def _predict_mcmc(self, future, trace):
+    def _predict_mcmc(self, future, trace, other_components):
         shift = trace["posterior"].get(f"fs_{self.model_idx} - shift", None)
         if shift is not None:
             shift = shift.mean()
@@ -288,7 +289,7 @@ class FourierSeasonality(TimeSeriesModel):
             lw=1,
         )
 
-    def needs_priors(self):
+    def needs_priors(self, *args, **kwargs):
         return self.tune_method == "prior_from_idata"
 
     def __str__(self):

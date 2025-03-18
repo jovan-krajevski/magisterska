@@ -52,6 +52,7 @@ class Constant(TimeSeriesModel):
     def definition(
         self,
         model: pm.Model,
+        other_components: dict,
         data: pd.DataFrame,
         model_idxs: dict[str, int],
         fit_params: dict | None,
@@ -72,13 +73,13 @@ class Constant(TimeSeriesModel):
 
         return c
 
-    def _tune(self, model, data, model_idxs, prev, priors):
-        return self.definition(model, data, model_idxs, prev)
+    def _tune(self, model, other_components, data, model_idxs, prev, priors):
+        return self.definition(model, other_components, data, model_idxs, prev)
 
     def _get_initval(self, initvals, model: pm.Model):
         return {}
 
-    def _predict_map(self, future, map_approx):
+    def _predict_map(self, future, map_approx, other_components):
         future[f"c_{self.model_idx}"] = (
             np.ones_like(future["t"])
             * map_approx[f"c_{self.model_idx} - c(l={self.lower},u={self.upper})"]
@@ -86,7 +87,7 @@ class Constant(TimeSeriesModel):
 
         return future[f"c_{self.model_idx}"]
 
-    def _predict_mcmc(self, future, trace):
+    def _predict_mcmc(self, future, trace, other_components):
         future[f"c_{self.model_idx}"] = (
             np.ones_like(future["t"])
             * trace["posterior"][
