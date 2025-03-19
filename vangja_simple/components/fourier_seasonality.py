@@ -19,12 +19,13 @@ class FourierSeasonality(TimeSeriesModel):
         series_order,
         beta_mean=0,
         beta_sd=10,
-        shrinkage_strength=100,
+        shrinkage_strength=1,
         allow_tune=False,
         tune_method: Literal["simple", "prior_from_idata"] = "simple",
         override_beta_mean_for_tune: bool | np.ndarray = False,
         override_beta_sd_for_tune: bool | np.ndarray = False,
         shift_for_tune: bool = False,
+        loss_factor_for_tune: float = 1,
     ):
         self.period = period
         self.series_order = series_order
@@ -37,6 +38,7 @@ class FourierSeasonality(TimeSeriesModel):
         self.override_beta_mean_for_tune = override_beta_mean_for_tune
         self.override_beta_sd_for_tune = override_beta_sd_for_tune
         self.shift_for_tune = shift_for_tune
+        self.loss_factor_for_tune = loss_factor_for_tune
 
     def _fourier_series(self, data: pd.DataFrame, shift=None):
         # convert to days since epoch
@@ -195,7 +197,9 @@ class FourierSeasonality(TimeSeriesModel):
             )
             pm.Potential(
                 f"{beta_key} - loss",
-                lam * pm.math.minimum(0, pm.math.dot(old, old) - pm.math.dot(new, new)),
+                self.loss_factor_for_tune
+                * lam
+                * pm.math.minimum(0, pm.math.dot(old, old) - pm.math.dot(new, new)),
             )
 
         return pm.math.sum(x * beta, axis=1)
