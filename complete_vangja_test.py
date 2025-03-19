@@ -70,11 +70,11 @@ pd.DataFrame.from_records(model_params_combined).to_csv(
 
 for point in pd.date_range(f"{year_start}", f"{year_end}"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    if (parent_path / "model_0" / f"{point}.csv").is_file():
+    if (parent_path / "model_0" / f"{points}.csv").is_file():
         for idx, _ in enumerate(model_params_combined):
             scores[idx] = scores.get(idx, [])
             scores[idx].append(
-                pd.read_csv(parent_path / f"model_{idx}" / f"{point}.csv", index_col=0)[
+                pd.read_csv(parent_path / f"model_{idx}" / f"{points}.csv", index_col=0)[
                     "mape"
                 ].mean()
             )
