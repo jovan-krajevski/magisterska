@@ -2,9 +2,9 @@ from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
-import pandas as pd
 
 from vangja_simple.time_series import TimeSeriesModel
 
@@ -26,6 +26,7 @@ class LinearTrend(TimeSeriesModel):
         tune_method: Literal["simple", "prior_from_idata"] = "simple",
         override_slope_mean_for_tune: bool | np.ndarray = False,
         override_slope_sd_for_tune: bool | np.ndarray = False,
+        loss_factor_for_tune: float = 0,
     ):
         self.n_changepoints = n_changepoints
         self.changepoint_range = changepoint_range
@@ -40,6 +41,7 @@ class LinearTrend(TimeSeriesModel):
         self.tune_method = tune_method
         self.override_slope_mean_for_tune = override_slope_mean_for_tune
         self.override_slope_sd_for_tune = override_slope_sd_for_tune
+        self.loss_factor_for_tune = loss_factor_for_tune
 
     def _add_slope(self, fit_params: dict, prev_model_idx: int):
         if self.frozen:
@@ -146,7 +148,7 @@ class LinearTrend(TimeSeriesModel):
 
     def _tune(
         self,
-        model: TimeSeriesModel,
+        model: pm.Model,
         other_components: dict,
         data: pd.DataFrame,
         model_idxs: dict[str, int],
@@ -225,6 +227,11 @@ class LinearTrend(TimeSeriesModel):
                 f"lt_{self.model_idx} - intercept",
                 self.intercept_mean,
                 self.intercept_sd,
+            )
+
+            pm.Potential(
+                f"{slope_key} - loss",
+                self.loss_factor_for_tune * pm.math.abs(slope - prev[slope_mu_key]),
             )
 
             t = np.array(data["t"])

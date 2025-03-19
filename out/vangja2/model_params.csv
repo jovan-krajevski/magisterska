@@ -1,0 +1,13 @@
+,trend_tune_method,seasonality_tune_method,trend_loss_factor
+0,simple,simple,-1
+1,simple,simple,0
+2,simple,simple,1
+3,simple,prior_from_idata,-1
+4,simple,prior_from_idata,0
+5,simple,prior_from_idata,1
+6,prior_from_idata,simple,-1
+7,prior_from_idata,simple,0
+8,prior_from_idata,simple,1
+9,prior_from_idata,prior_from_idata,-1
+10,prior_from_idata,prior_from_idata,0
+11,prior_from_idata,prior_from_idata,1
