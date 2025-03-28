@@ -1,4 +1,0 @@
-trend allow_tune=F
-yearly allow_tune=T
-weekly allow_tune=T
-trend ** (weekly + yearly)
