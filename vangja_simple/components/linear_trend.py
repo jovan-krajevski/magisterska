@@ -7,6 +7,7 @@ import pymc as pm
 import pytensor.tensor as pt
 
 from vangja_simple.time_series import TimeSeriesModel
+from vangja.utils import get_group_definition
 
 
 class LinearTrend(TimeSeriesModel):
@@ -100,6 +101,88 @@ class LinearTrend(TimeSeriesModel):
             delta_sd,
             shape=self.n_changepoints,
         )
+
+    def hierarchical_definition(
+        self,
+        model: TimeSeriesModel,
+        other_components: dict,
+        data: pd.DataFrame,
+        model_idxs: dict[str, int],
+        fit_params: dict | None,
+    ):
+        model_idxs["lt"] = model_idxs.get("lt", 0)
+        self.model_idx = model_idxs["lt"]
+        model_idxs["lt"] += 1
+
+        self.group, self.n_groups, self.groups_ = get_group_definition(
+            data, "series", "partial"
+        )
+
+        with model:
+            large_slope = pm.Normal(
+                f"lt_{self.model_idx} - large_slope", self.slope_mean, self.slope_sd
+            )
+
+            small_slope = pm.Normal(
+                f"lt_{self.model_idx} - slope",
+                self.slope_mean,
+                self.slope_sd,
+                shape=self.n_groups - 1,
+            )
+
+            delta_sd = self.delta_sd
+            if self.delta_sd is None:
+                delta_sd = pm.Exponential(f"lt_{self.model_idx} - tau", 1.5)
+
+            delta = pm.Laplace(
+                f"lt_{self.model_idx} - delta",
+                self.delta_mean,
+                delta_sd,
+                shape=self.n_changepoints,
+            )
+
+            large_intercept = pm.Normal(
+                f"lt_{self.model_idx} - large_intercept",
+                self.intercept_mean,
+                self.intercept_sd,
+            )
+
+            small_intercept = pm.Normal(
+                f"lt_{self.model_idx} - intercept",
+                self.intercept_mean,
+                self.intercept_sd,
+                shape=self.n_groups - 1,
+            )
+
+            # only first series gets changepoints
+            large_series = data[data["series"] == data["series"].iloc[0]]
+            large_t = np.array(large_series["t"])
+            hist_size = int(np.floor(large_series.shape[0] * self.changepoint_range))
+            cp_indexes = (
+                np.linspace(0, hist_size - 1, self.n_changepoints + 1)
+                .round()
+                .astype(int)
+            )
+            self.s = np.array(large_series.iloc[cp_indexes]["t"].tail(-1))
+            A = (large_t[:, None] > self.s) * 1
+
+            gamma = -self.s * delta
+
+            # breakpoint()
+
+            large_trend = (large_slope + pm.math.sum(A * delta, axis=1)) * large_t + (
+                large_intercept + pm.math.sum(A * gamma, axis=1)
+            )
+
+            # other series have simple linear trend
+            small_series = data[data["series"] != data["series"].iloc[0]]
+            small_t = np.array(small_series["t"])
+            small_group = self.group[data["series"] != data["series"].iloc[0]]
+            small_trend = (
+                small_slope[small_group] * small_t + small_intercept[small_group]
+            )
+
+        return pm.math.concatenate([large_trend, small_trend])
 
     def definition(
         self,
@@ -248,7 +331,46 @@ class LinearTrend(TimeSeriesModel):
             ),
         }
 
-    def _predict_map(self, future, map_approx, other_components):
+    def _predict_map(
+        self, future, map_approx, other_components, hierarchical_model=False
+    ):
+        if hierarchical_model:
+            forecasts = []
+            for group_code in self.groups_.keys():
+                if group_code == self.group[0]:
+                    new_A = (np.array(future["t"])[:, None] > self.s) * 1
+                    forecasts.append(
+                        np.array(
+                            (
+                                map_approx[f"lt_{self.model_idx} - large_slope"]
+                                + np.dot(
+                                    new_A, map_approx[f"lt_{self.model_idx} - delta"]
+                                )
+                            )
+                            * future["t"]
+                            + (
+                                map_approx[f"lt_{self.model_idx} - large_intercept"]
+                                + np.dot(
+                                    new_A,
+                                    (
+                                        -self.s
+                                        * map_approx[f"lt_{self.model_idx} - delta"]
+                                    ),
+                                )
+                            )
+                        )
+                    )
+                else:
+                    forecasts.append(
+                        map_approx[f"lt_{self.model_idx} - slope"][group_code]
+                        * future["t"]
+                        + map_approx[f"lt_{self.model_idx} - intercept"][group_code]
+                    )
+
+                future[f"lt_{self.model_idx}_{group_code}"] = forecasts[-1]
+
+            return np.vstack(forecasts)
+
         if f"lt_{self.model_idx} - delta" not in map_approx:
             future[f"lt_{self.model_idx}"] = np.array(
                 map_approx[f"lt_{self.model_idx} - slope"] * future["t"]

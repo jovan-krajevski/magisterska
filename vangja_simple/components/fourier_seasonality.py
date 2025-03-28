@@ -8,6 +8,7 @@ import pymc as pm
 import pytensor.tensor as pt
 
 from vangja_simple.time_series import TimeSeriesModel
+from vangja.utils import get_group_definition
 
 
 class FourierSeasonality(TimeSeriesModel):
@@ -92,6 +93,50 @@ class FourierSeasonality(TimeSeriesModel):
             sigma=self.beta_sd,
             shape=2 * self.series_order,
         )
+
+    def hierarchical_definition(
+        self,
+        model: TimeSeriesModel,
+        other_components: dict,
+        data: pd.DataFrame,
+        model_idxs: dict[str, int],
+        fit_params: dict | None,
+    ):
+        model_idxs["fs"] = model_idxs.get("fs", 0)
+        self.model_idx = model_idxs["fs"]
+        model_idxs["fs"] += 1
+
+        self.group, self.n_groups, self.groups_ = get_group_definition(
+            data, "series", "partial"
+        )
+
+        x = self._fourier_series(data)
+
+        with model:
+            shared_beta = pm.Normal(
+                f"fs_{self.model_idx} - shared_beta(p={self.period},n={self.series_order})",
+                mu=self.beta_mean,
+                sigma=self.beta_sd,
+                shape=2 * self.series_order,
+            )
+            sigma_beta = pm.HalfNormal(
+                f"fs_{self.model_idx} - beta_sigma(p={self.period},n={self.series_order})",
+                sigma=self.beta_sd / self.shrinkage_strength,
+                shape=2 * self.series_order,
+            )
+            offset_beta = pm.Normal(
+                f"fs_{self.model_idx} - offset_beta(p={self.period},n={self.series_order})",
+                mu=0,
+                sigma=1,
+                shape=(self.n_groups, 2 * self.series_order),
+            )
+
+            beta = pm.Deterministic(
+                f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})",
+                shared_beta + offset_beta * sigma_beta,
+            )
+
+        return pm.math.sum(x * beta[self.group], axis=1)
 
     def definition(
         self,
@@ -204,54 +249,30 @@ class FourierSeasonality(TimeSeriesModel):
 
         return pm.math.sum(x * beta, axis=1)
 
-        # if self.tune_method == "offset":
-        #     context_beta = pm.Normal(
-        #         f"fs_{self.model_idx} - context_beta(p={self.period},n={self.series_order})",
-        #         mu=pt.as_tensor_variable(prev[beta_mu_key]),
-        #         sigma=pt.as_tensor_variable(prev[beta_sd_key]),
-        #         shape=2 * self.series_order,
-        #     )
-        #     offset_beta = pm.HalfNormal(
-        #         f"fs_{self.model_idx} - offset_beta(p={self.period},n={self.series_order})",
-        #         sigma=pt.as_tensor_variable(prev[beta_sd_key]),
-        #         shape=2 * self.series_order,
-        #     )
-        #     beta = pm.Deterministic(beta_key, context_beta + offset_beta)
-
-        # if self.tune_method == "linear":
-        #     context_beta = pm.Normal(
-        #         f"fs_{self.model_idx} - context_beta(p={self.period},n={self.series_order})",
-        #         mu=pt.as_tensor_variable(prev[beta_mu_key]),
-        #         sigma=pt.as_tensor_variable(prev[beta_sd_key]),
-        #         shape=2 * self.series_order,
-        #     )
-        #     scale_beta = pm.Normal(
-        #         f"fs_{self.model_idx} - scale_beta(p={self.period},n={self.series_order})",
-        #         mu=0,
-        #         sigma=1 / 3,
-        #         shape=2 * self.series_order,
-        #     )
-        #     offset_beta = pm.HalfNormal(
-        #         f"fs_{self.model_idx} - offset_beta(p={self.period},n={self.series_order})",
-        #         sigma=pt.as_tensor_variable(prev[beta_sd_key]),
-        #         shape=2 * self.series_order,
-        #     )
-        #     beta = pm.Deterministic(
-        #         beta_key, context_beta * scale_beta + offset_beta
-        #     )
-
-        # if self.tune_method == "same":
-        #     beta = pm.Deterministic(
-        #         beta_key, pt.as_tensor_variable(prev[beta_mu_key])
-        #     )
-
     def _get_initval(self, initvals, model: pm.Model):
         return {}
 
     def _det_seasonality_posterior(self, beta, x):
         return np.dot(x, beta.T)
 
-    def _predict_map(self, future, map_approx, other_components):
+    def _predict_map(
+        self, future, map_approx, other_components, hierarchical_model=False
+    ):
+        if hierarchical_model:
+            forecasts = []
+            for group_code in self.groups_.keys():
+                forecasts.append(
+                    self._det_seasonality_posterior(
+                        map_approx[
+                            f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
+                        ][group_code],
+                        self._fourier_series(future),
+                    )
+                )
+                future[f"fs_{self.model_idx}_{group_code}"] = forecasts[-1]
+
+            return np.vstack(forecasts)
+
         future[f"fs_{self.model_idx}"] = self._det_seasonality_posterior(
             map_approx[
                 f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"

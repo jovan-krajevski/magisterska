@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pymc_extras as pmx
-from pkg_resources import non_empty_lines
 from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -17,6 +16,7 @@ from sklearn.metrics import (
 )
 
 from vangja_simple.types import ScaleParams
+from vangja.utils import get_group_definition
 
 
 class TimeSeriesModel:
@@ -191,6 +191,7 @@ class TimeSeriesModel:
         use_prophet_initvals: bool = True,
         progressbar: bool = True,
         nuts_sampler: Literal["pymc", "nutpie", "numpyro", "blackjax"] = "pymc",
+        hierarchical_model: bool = False,
     ):
         self._process_data(data)
 
@@ -198,16 +199,24 @@ class TimeSeriesModel:
         self.tuned_model = None
         self.model_idxs = {}
         self.other_components = {}
-        self._init_model(
-            model=self.model,
-            mu=self.definition(
+        mu = (
+            self.hierarchical_definition(
                 self.model,
                 self.other_components,
                 self.data,
                 self.model_idxs,
                 self.fit_params,
-            ),
+            )
+            if hierarchical_model
+            else self.definition(
+                self.model,
+                self.other_components,
+                self.data,
+                self.model_idxs,
+                self.fit_params,
+            )
         )
+        self._init_model(model=self.model, mu=mu)
 
         self._fit_model(
             self.model,
@@ -389,7 +398,7 @@ class TimeSeriesModel:
         )
         return future
 
-    def predict(self, days):
+    def predict(self, days, hierarchical_model=False):
         future = self._make_future_df(days)
         forecasts = self._predict(
             future,
@@ -397,7 +406,23 @@ class TimeSeriesModel:
             self.map_approx,
             self.trace,
             self.other_components,
+            hierarchical_model,
         )
+
+        if hierarchical_model:
+            for group_code in range(forecasts.shape[0]):
+                future[f"yhat_{group_code}"] = (
+                    forecasts[group_code] * self.scale_params["y_max"]
+                )
+                for model_type, model_cnt in self.model_idxs.items():
+                    if model_type.startswith("lt") is False:
+                        continue
+                    for model_idx in range(model_cnt):
+                        component = f"{model_type}_{model_idx}_{group_code}"
+                        if component in future.columns:
+                            future[component] *= self.scale_params["y_max"]
+
+            return future
 
         future["yhat"] = forecasts * self.scale_params["y_max"]
         for model_type, model_cnt in self.model_idxs.items():
@@ -410,9 +435,19 @@ class TimeSeriesModel:
 
         return future
 
-    def _predict(self, future, method, map_approx, trace, other_components):
+    def _predict(
+        self,
+        future,
+        method,
+        map_approx,
+        trace,
+        other_components,
+        hierarchical_model=False,
+    ):
         if method in ["mapx", "map"]:
-            return self._predict_map(future, map_approx, other_components)
+            return self._predict_map(
+                future, map_approx, other_components, hierarchical_model
+            )
 
         return self._predict_mcmc(future, trace, other_components)
 
@@ -450,6 +485,20 @@ class TimeSeriesModel:
                 "mape": {f"{label}": mean_absolute_percentage_error(y, yhat)},
             }
         )
+
+    def hierarchical_metrics(self, y_true, future):
+        metrics = {"mse": {}, "rmse": {}, "mae": {}, "mape": {}}
+        test_group, _, test_groups_ = get_group_definition(y_true, "series", "partial")
+        for group_code, group_name in test_groups_.items():
+            group_idx = test_group == group_code
+            y = y_true["y"][group_idx]
+            yhat = future[f"yhat_{group_code}"][-len(y) :]
+            metrics["mse"][group_name] = mean_squared_error(y, yhat)
+            metrics["rmse"][group_name] = root_mean_squared_error(y, yhat)
+            metrics["mae"][group_name] = mean_absolute_error(y, yhat)
+            metrics["mape"][group_name] = mean_absolute_percentage_error(y, yhat)
+
+        return pd.DataFrame(metrics)
 
     def needs_priors(self, *args, **kwargs):
         return False
@@ -520,6 +569,17 @@ class AdditiveTimeSeries(CombinedTimeSeries):
 
         return left + right
 
+    def hierarchical_definition(self, *args, **kwargs):
+        left = self.left
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left.hierarchical_definition(*args, **kwargs)
+
+        right = self.right
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right.hierarchical_definition(*args, **kwargs)
+
+        return left + right
+
     def _tune(self, *args, **kwargs):
         left = self.left
         if not (type(self.left) is int or type(self.left) is float):
@@ -555,6 +615,17 @@ class MultiplicativeTimeSeries(CombinedTimeSeries):
         right = self.right
         if not (type(self.right) is int or type(self.right) is float):
             right = self.right.definition(*args, **kwargs)
+
+        return left * (1 + right)
+
+    def hierarchical_definition(self, *args, **kwargs):
+        left = self.left
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left.hierarchical_definition(*args, **kwargs)
+
+        right = self.right
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right.hierarchical_definition(*args, **kwargs)
 
         return left * (1 + right)
 
@@ -597,6 +668,17 @@ class SimpleMultiplicativeTimeSeries(CombinedTimeSeries):
         right = self.right
         if not (type(self.right) is int or type(self.right) is float):
             right = self.right.definition(*args, **kwargs)
+
+        return left * right
+
+    def hierarchical_definition(self, *args, **kwargs):
+        left = self.left
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left.hierarchical_definition(*args, **kwargs)
+
+        right = self.right
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right.hierarchical_definition(*args, **kwargs)
 
         return left * right
 
