@@ -1,6 +1,3 @@
-import pickle
-from pathlib import Path
-
 import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,15 +5,15 @@ import pandas as pd
 import pymc as pm
 import pymc_extras as pmx
 
-
 from vangja_hierarchical.types import (
-    YScaleParams,
-    TScaleParams,
+    FreqStr,
     Method,
     NutsSampler,
     ScaleMode,
+    TScaleParams,
+    YScaleParams,
 )
-from vangja.utils import get_group_definition
+from vangja_hierarchical.utils import get_group_definition
 
 
 class TimeSeriesModel:
@@ -56,7 +53,7 @@ class TimeSeriesModel:
         self.data.sort_values("ds", inplace=True)
 
         self.group, self.n_groups, self.groups_ = get_group_definition(
-            self.data, "series", "partial"
+            self.data, "partial"
         )
 
         self.t_scale_params = (
@@ -83,6 +80,7 @@ class TimeSeriesModel:
         )
 
     def _get_model_initvals(self) -> dict[str, float]:
+        """Calculate initvals based on data."""
         initvals: dict[str, float] = {"sigma": 1.0}
         for key in self.groups_.keys():
             series: pd.DataFrame = self.data[self.group == key]
@@ -95,7 +93,16 @@ class TimeSeriesModel:
 
         return initvals
 
-    def get_initval(self, initvals, model: pm.Model) -> dict:
+    def get_initval(self, initvals: dict[str, float], model: pm.Model) -> dict:
+        """Get the initval of the standard deviation of the Normal prior of y (target).
+
+        Parameters
+        ----------
+        initvals: dict[str, float]
+            Calculated initvals based on data.
+        model: pm.Model
+            The model for which the initvals will be set.
+        """
         return {
             model.named_vars["sigma"]: initvals.get("sigma", 1),
             **self._get_initval(initvals, model),
@@ -115,6 +122,39 @@ class TimeSeriesModel:
         progressbar: bool = True,
         idata: az.InferenceData | None = None,
     ):
+        """
+        Create and fit the model to the data.
+
+        Parameters
+        ----------
+        data : pd.DataFrame
+            A pandas dataframe that must at least have columns ds (predictor), y
+            (target) and series (name of time series).
+        scale_mode: ScaleMode
+            Whether to use maxabs or minmax scaling of the y (target).
+        t_scale_params: TScaleParams | None
+            Whether to override scale parameters for ds (predictor).
+        sigma_sd: float
+            The standard deviation of the Normal prior of y (target).
+        method: Method
+            The Bayesian inference method to be used. Either a point estimate MAP), a
+            VI method (advi etc.) or full Bayesian sampling (MCMC).
+        samples: int
+            Denotes the number of samples to be drawn from the posterior for MCMC and
+            VI methods.
+        chains: int
+            Denotes the number of independent chains drawn from the posterior. Only
+            applicable to the MCMC methods.
+        nuts_sampler: NutsSampler
+            The sampler for the NUTS method.
+        progressbar: bool
+            Whether to show a progressbar while fitting the model.
+        idata: az.InferenceData | None
+            Sample from a posterior. If it is not None, Vangja will use this to set the
+            parameters' priors in the model. If idata is not None, each component from
+            the model should specify how idata should be used to set its parameters'
+            priors.
+        """
         self._process_data(data, scale_mode, t_scale_params)
 
         self.model = pm.Model()
@@ -134,7 +174,7 @@ class TimeSeriesModel:
                     },
                 )
 
-            mu = self.definition(self.model, self.data, self.model_idxs, priors)
+            mu = self.definition(self.model, self.data, self.model_idxs, priors, idata)
             sigma = pm.HalfNormal("sigma", sigma_sd)
             _ = pm.Normal("obs", mu=mu, sigma=sigma, observed=self.data["y"])
 
@@ -153,7 +193,7 @@ class TimeSeriesModel:
                     progressbar=progressbar,
                     gradient_backend="jax",
                     compile_kwargs={"mode": "JAX"},
-                    options={"maxiter": 1e4},
+                    options={"maxiter": 1e6},
                 )
             elif self.method == "map":
                 self.map_approx = pm.find_MAP(
@@ -192,87 +232,31 @@ class TimeSeriesModel:
                     f"Method {self.method} is not supported at the moment!"
                 )
 
-    def save_model(self, filepath: Path, return_objs: bool = False):
-        model = {
-            "scale_params": self.scale_params,
-            "map_approx": self.map_approx,
-            "method": self.method,
-            "samples": self.samples,
-            "other_components": self.other_components,
-        }
+    def _make_future_df(self, horizon: int, freq: FreqStr = "D"):
+        """
+        Create a dataframe for inference.
 
-        if return_objs:
-            return model, self.data, self.trace
-
-        filepath.mkdir(parents=True)
-        with open(filepath / "model.pkl", "wb") as f:
-            pickle.dump(model, f)
-
-        with open(filepath / "data.pkl", "wb") as f:
-            pickle.dump(self.data, f)
-
-        if self.trace is not None:
-            self.trace.to_netcdf(filepath / "trace.nc")
-
-    def load_model(self, filepath: Path, objs: tuple | None = None):
-        self.fit_params = {}
-
-        if objs is not None:
-            pkl = objs[0]
-        else:
-            with open(filepath / "model.pkl", "rb") as f:
-                pkl = pickle.load(f)
-
-        self.scale_params = pkl["scale_params"]
-        map_approx = pkl["map_approx"]
-        self.method = pkl["method"]
-        self.samples = pkl["samples"]
-        self.other_components = pkl.get("other_components", {})
-
-        if objs is not None:
-            self.data = objs[1]
-        else:
-            with open(filepath / "data.pkl", "rb") as f:
-                self.data = pickle.load(f)
-
-        trace_path = filepath / "trace.nc"
-        if objs is not None:
-            trace = objs[2]
-        else:
-            trace = az.from_netcdf(trace_path) if trace_path.exists() else None
-
-        self.model = pm.Model()
-        self.tuned_model = None
-        self.model_idxs = {}
-        self._init_model(
-            model=self.model,
-            mu=self.definition(
-                self.model,
-                self.other_components,
-                self.data,
-                self.model_idxs,
-                {"map_approx": map_approx, "trace": trace},
-            ),
-        )
-
-        self.map_approx = map_approx
-        self.trace = trace
-        self.fit_params = {"map_approx": self.map_approx, "trace": self.trace}
-
-    def _make_future_df(self, days):
+        Parameters
+        ----------
+        horizon: int
+            The number of steps in the future that we are forecasting.
+        freq: FreqStr
+            The distance between the forecasting steps.
+        """
         future = pd.DataFrame(
             {
                 "ds": pd.DatetimeIndex(
                     np.hstack(
                         (
                             pd.date_range(
-                                self.scale_params["ds_min"],
-                                self.scale_params["ds_max"],
+                                self.t_scale_params["ds_min"],
+                                self.t_scale_params["ds_max"],
                                 freq="D",
                             ).to_numpy(),
                             pd.date_range(
-                                self.scale_params["ds_max"],
-                                self.scale_params["ds_max"] + pd.Timedelta(days, "D"),
+                                self.t_scale_params["ds_max"],
+                                self.t_scale_params["ds_max"]
+                                + pd.Timedelta(horizon, freq),
                                 inclusive="right",
                             ).to_numpy(),
                         )
@@ -280,65 +264,93 @@ class TimeSeriesModel:
                 )
             }
         )
-        future["t"] = (future["ds"] - self.scale_params["ds_min"]) / (
-            self.scale_params["ds_max"] - self.scale_params["ds_min"]
+        future["t"] = (future["ds"] - self.t_scale_params["ds_min"]) / (
+            self.t_scale_params["ds_max"] - self.t_scale_params["ds_min"]
         )
         return future
 
-    def predict(self, days, hierarchical_model=False):
-        future = self._make_future_df(days)
-        forecasts = self._predict(
-            future,
-            self.method,
-            self.map_approx,
-            self.trace,
-            self.other_components,
-            hierarchical_model,
-        )
+    def predict(self, horizon: int, freq: FreqStr = "D"):
+        """
+        Perform out-of-sample inference.
 
-        if hierarchical_model:
-            for group_code in range(forecasts.shape[0]):
-                future[f"yhat_{group_code}"] = (
-                    forecasts[group_code] * self.scale_params["y_max"]
-                )
-                for model_type, model_cnt in self.model_idxs.items():
-                    if model_type.startswith("lt") is False:
-                        continue
-                    for model_idx in range(model_cnt):
-                        component = f"{model_type}_{model_idx}_{group_code}"
-                        if component in future.columns:
-                            future[component] *= self.scale_params["y_max"]
+        Parameters
+        ----------
+        horizon: int
+            The number of steps in the future that we are forecasting.
+        freq: FreqStr
+            The distance between the forecasting steps.
+        """
+        future = self._make_future_df(horizon, freq)
+        forecasts = self._predict(future, self.method, self.map_approx, self.trace)
 
-            return future
-
-        future["yhat"] = forecasts * self.scale_params["y_max"]
-        for model_type, model_cnt in self.model_idxs.items():
-            if model_type.startswith("lt") is False:
-                continue
-            for model_idx in range(model_cnt):
-                component = f"{model_type}_{model_idx}"
-                if component in future.columns:
-                    future[component] *= self.scale_params["y_max"]
+        for group_code in range(forecasts.shape[0]):
+            future[f"yhat_{group_code}"] = (
+                forecasts[group_code] * self.y_scale_params["y_max"]
+            )
+            for model_type, model_cnt in self.model_idxs.items():
+                if model_type.startswith("lt") is False:
+                    continue
+                for model_idx in range(model_cnt):
+                    component = f"{model_type}_{model_idx}_{group_code}"
+                    if component in future.columns:
+                        future[component] *= self.y_scale_params["y_max"]
 
         return future
 
     def _predict(
         self,
-        future,
-        method,
-        map_approx,
-        trace,
-        other_components,
-        hierarchical_model=False,
+        future: pd.DataFrame,
+        method: Method,
+        map_approx: dict[str, np.ndarray] | None,
+        trace: az.InferenceData | None,
     ):
+        """
+        Perform out-of-sample inference for each component.
+
+        Parameters
+        ----------
+        future: pd.DataFrame
+            Pandas dataframe containing the timestamps for which inference should be
+            performed.
+        method: Method
+            The Bayesian inference method to be used. Either a point estimate MAP), a
+            VI method (advi etc.) or full Bayesian sampling (MCMC).
+        map_approx: dict[str, np.ndarray] | None
+            The MAP posterior parameter estimate obtained with the Bayesian inference.
+        trace: az.InferenceData | None
+            Samples from the posterior obtained with the Bayesian inference.
+        """
         if method in ["mapx", "map"]:
-            return self._predict_map(
-                future, map_approx, other_components, hierarchical_model
-            )
+            return self._predict_map(future, map_approx)
 
-        return self._predict_mcmc(future, trace, other_components)
+        return self._predict_mcmc(future, trace)
 
-    def plot(self, future, y_true=None, series=""):
+    def plot(
+        self, future: pd.DataFrame, series: str, y_true: pd.DataFrame | None = None
+    ):
+        """
+        Plot the inference results for a given series.
+
+        Parameters
+        ----------
+        future: pd.DataFrame
+            Pandas dataframe containing the timestamps for which inference should be
+            performed.
+        series: str
+            The name of the time series.
+        y_true: pd.DataFrame | None
+            A pandas dataframe containing the true values for the inference period that
+            must at least have columns ds (predictor), y (target) and series (name of
+            time series).
+        """
+        group_code: int | None = None
+        for group_code_, group_name in self.groups_.items():
+            if group_name == series:
+                group_code = group_code_
+
+        if group_code is None:
+            raise ValueError(f"Time series {series} is not present in the dataset!")
+
         plt.figure(figsize=(14, 100 * 6))
         plt.subplot(100, 1, 1)
         plt.title("Predictions")
@@ -353,16 +365,23 @@ class TimeSeriesModel:
         )
 
         if y_true is not None:
-            plt.scatter(y_true["ds"], y_true["y"], s=0.5, color="C1", label="y_true")
+            plt.scatter(
+                y_true["ds"],
+                y_true[y_true["series"] == series]["y"],
+                s=0.5,
+                color="C1",
+                label="y_true",
+            )
 
-        plt.plot(future["ds"], future[f"yhat{series}"], lw=1, label=r"$\widehat{y}$")
+        plt.plot(
+            future["ds"], future[f"yhat_{group_code}"], lw=1, label=r"$\widehat{y}$"
+        )
 
         plt.legend()
         plot_params = {"idx": 1}
-        self._plot(plot_params, future, self.data, self.scale_params, y_true, series)
-
-    def needs_priors(self, *args, **kwargs):
-        return False
+        self._plot(
+            plot_params, future, self.data, self.scale_params, y_true, group_code
+        )
 
     def __add__(self, other):
         return AdditiveTimeSeries(self, other)
@@ -406,17 +425,6 @@ class CombinedTimeSeries(TimeSeriesModel):
         if not (type(self.right) is int or type(self.right) is float):
             self.right._plot(*args, **kwargs)
 
-    def needs_priors(self, *args, **kwargs):
-        left = False
-        right = False
-        if not (type(self.left) is int or type(self.left) is float):
-            left = self.left.needs_priors(*args, **kwargs)
-
-        if not (type(self.right) is int or type(self.right) is float):
-            right = self.right.needs_priors(*args, **kwargs)
-
-        return left or right
-
 
 class AdditiveTimeSeries(CombinedTimeSeries):
     def definition(self, *args, **kwargs):
@@ -427,28 +435,6 @@ class AdditiveTimeSeries(CombinedTimeSeries):
         right = self.right
         if not (type(self.right) is int or type(self.right) is float):
             right = self.right.definition(*args, **kwargs)
-
-        return left + right
-
-    def hierarchical_definition(self, *args, **kwargs):
-        left = self.left
-        if not (type(self.left) is int or type(self.left) is float):
-            left = self.left.hierarchical_definition(*args, **kwargs)
-
-        right = self.right
-        if not (type(self.right) is int or type(self.right) is float):
-            right = self.right.hierarchical_definition(*args, **kwargs)
-
-        return left + right
-
-    def _tune(self, *args, **kwargs):
-        left = self.left
-        if not (type(self.left) is int or type(self.left) is float):
-            left = self.left._tune(*args, **kwargs)
-
-        right = self.right
-        if not (type(self.right) is int or type(self.right) is float):
-            right = self.right._tune(*args, **kwargs)
 
         return left + right
 
@@ -476,28 +462,6 @@ class MultiplicativeTimeSeries(CombinedTimeSeries):
         right = self.right
         if not (type(self.right) is int or type(self.right) is float):
             right = self.right.definition(*args, **kwargs)
-
-        return left * (1 + right)
-
-    def hierarchical_definition(self, *args, **kwargs):
-        left = self.left
-        if not (type(self.left) is int or type(self.left) is float):
-            left = self.left.hierarchical_definition(*args, **kwargs)
-
-        right = self.right
-        if not (type(self.right) is int or type(self.right) is float):
-            right = self.right.hierarchical_definition(*args, **kwargs)
-
-        return left * (1 + right)
-
-    def _tune(self, *args, **kwargs):
-        left = self.left
-        if not (type(self.left) is int or type(self.left) is float):
-            left = self.left._tune(*args, **kwargs)
-
-        right = self.right
-        if not (type(self.right) is int or type(self.right) is float):
-            right = self.right._tune(*args, **kwargs)
 
         return left * (1 + right)
 
@@ -529,28 +493,6 @@ class SimpleMultiplicativeTimeSeries(CombinedTimeSeries):
         right = self.right
         if not (type(self.right) is int or type(self.right) is float):
             right = self.right.definition(*args, **kwargs)
-
-        return left * right
-
-    def hierarchical_definition(self, *args, **kwargs):
-        left = self.left
-        if not (type(self.left) is int or type(self.left) is float):
-            left = self.left.hierarchical_definition(*args, **kwargs)
-
-        right = self.right
-        if not (type(self.right) is int or type(self.right) is float):
-            right = self.right.hierarchical_definition(*args, **kwargs)
-
-        return left * right
-
-    def _tune(self, *args, **kwargs):
-        left = self.left
-        if not (type(self.left) is int or type(self.left) is float):
-            left = self.left._tune(*args, **kwargs)
-
-        right = self.right
-        if not (type(self.right) is int or type(self.right) is float):
-            right = self.right._tune(*args, **kwargs)
 
         return left * right
 

@@ -34,9 +34,7 @@ def download_data(download_folder: Path) -> list[pd.DataFrame]:
 
 
 def process_data(data: pd.DataFrame) -> list[pd.DataFrame]:
-    downloaded_tickers = {col[1] for col in data.columns}
     dfs: list[pd.DataFrame] = []
-    # breakpoint()
     df = (data["Close"] + data["Open"] + data["High"] + data["Low"]) / 4
     df.index = pd.to_datetime(df.index)
     full_date_range = pd.date_range(start=df.index.min(), end=df.index.max(), freq="D")
@@ -51,40 +49,6 @@ def process_data(data: pd.DataFrame) -> list[pd.DataFrame]:
         ticker["series"] = ticker.columns[0]
         ticker = ticker.rename(columns={ticker.columns[0]: "y"})
         dfs.append(ticker)
-    # breakpoint()
-
-    return sorted(dfs, key=lambda x: x["series"].iloc[0])
-
-    for ticker in downloaded_tickers:
-        df = pd.DataFrame(
-            data={
-                # "open": data["Open"][ticker].to_numpy(),
-                # "high": data["High"][ticker].to_numpy(),
-                # "low": data["Low"][ticker].to_numpy(),
-                # "close": data["Close"][ticker].to_numpy(),
-                "typical_price": (
-                    (
-                        data["Open"][ticker]
-                        + data["High"][ticker]
-                        + data["Low"][ticker]
-                        + data["Close"][ticker]
-                    )
-                    / 4
-                ).to_numpy(),
-                # "volume": data["Volume"][ticker].to_numpy(),
-            },
-            index=data["Close"][ticker].index,
-        )
-
-        df.index = pd.to_datetime(df.index)
-        full_date_range = pd.date_range(
-            start=df.index.min(), end=df.index.max(), freq="D"
-        )
-        df = df.reindex(full_date_range).interpolate()
-        df["ds"] = df.index
-        df.reset_index(drop=True, inplace=True)
-        df["series"] = ticker
-        dfs.append(df)
 
     return sorted(dfs, key=lambda x: x["series"].iloc[0])
 

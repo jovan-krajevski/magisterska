@@ -27,3 +27,27 @@ Method = Literal[
 ]
 
 NutsSampler = Literal["pymc", "nutpie", "numpyro", "blackjax"]
+
+FreqStr = Literal[
+    "Y",
+    "M",
+    "W",
+    "D",
+    "h",
+    "m",
+    "s",
+    "ms",
+    "us",
+    "ns",
+    "ps",
+    "minute",
+    "second",
+    "millisecond",
+    "microsecond",
+    "nanosecond",
+    "picosecond",
+]
+
+TuneMethod = Literal["parametric", "prior_from_idata"]
+
+PoolType = Literal["partial", "complete", "indivdual"]

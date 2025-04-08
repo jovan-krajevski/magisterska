@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from typing import Literal
 from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -8,9 +7,11 @@ from sklearn.metrics import (
     root_mean_squared_error,
 )
 
+from vangja_hierarchical.types import PoolType
+
 
 def get_group_definition(
-    data: pd.DataFrame, pool_type: Literal["partial", "complete", "indivdual"]
+    data: pd.DataFrame, pool_type: PoolType
 ) -> tuple[np.ndarray, int, dict[int, str]]:
     """Assign group codes to different series.
 
@@ -19,7 +20,7 @@ def get_group_definition(
     data : pd.DataFrame
         A pandas dataframe that must at least have columns ds (predictor), y
         (target) and series (name of time series).
-    pool_type : Literal["partial", "complete", "indivdual"]
+    pool_type : PoolType
         Type of pooling performed when sampling.
     """
     pool_cols = "series"
@@ -36,9 +37,24 @@ def get_group_definition(
     return group, n_groups, group_mapping
 
 
-def metrics(y_true, future):
+def metrics(y_true: pd.DataFrame, future: pd.DataFrame, pool_type: PoolType):
+    """
+    Calculate metrics for every time series.
+
+    Parameters
+    ----------
+    y_true: pd.DataFrame
+        A pandas dataframe containing the true values for the inference period that
+        must at least have columns ds (predictor), y (target) and series (name of time
+        series).
+    future: pd.DataFrame
+        Pandas dataframe containing the timestamps for which inference should be
+        performed.
+    pool_type : PoolType
+        Type of pooling performed when sampling.
+    """
     metrics = {"mse": {}, "rmse": {}, "mae": {}, "mape": {}}
-    test_group, _, test_groups_ = get_group_definition(y_true, "series", "partial")
+    test_group, _, test_groups_ = get_group_definition(y_true, pool_type)
     for group_code, group_name in test_groups_.items():
         group_idx = test_group == group_code
         y = y_true["y"][group_idx]
