@@ -1,14 +1,13 @@
+import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
-import pymc as pm
 import pandas as pd
+import pymc as pm
 import pytensor.tensor as pt
-import arviz as az
-
 
 from vangja_hierarchical.time_series import TimeSeriesModel
+from vangja_hierarchical.types import PoolType, TuneMethod
 from vangja_hierarchical.utils import get_group_definition
-from vangja_hierarchical.types import TuneMethod, PoolType
 
 
 class LinearTrend(TimeSeriesModel):
@@ -23,7 +22,7 @@ class LinearTrend(TimeSeriesModel):
         delta_mean: float = 0,
         delta_sd: float = 0.05,
         pool_type: PoolType = "partial",
-        tune_method: TuneMethod = "parametric",
+        tune_method: TuneMethod | None = "parametric",
         override_slope_mean_for_tune: np.ndarray | None = None,
         override_slope_sd_for_tune: np.ndarray | None = None,
         shrinkage_strength: float = 100,
@@ -56,9 +55,10 @@ class LinearTrend(TimeSeriesModel):
             a random variable with a Exponential(lam=1.5) prior.
         pool_type: PoolType
             Type of pooling performed when sampling.
-        tune_method: TuneMethod
+        tune_method: TuneMethod | None
             How the transfer learning is to be performed. One of "parametric" or
-            "prior_from_idata".
+            "prior_from_idata". If set to None, this component will not be tuned even if
+            idata is provided.
         override_slope_mean_for_tune: np.ndarray | None
             Override the mean of the Normal prior for the slope parameter with this
             value.
@@ -76,8 +76,8 @@ class LinearTrend(TimeSeriesModel):
         self.intercept_sd = intercept_sd
         self.delta_mean = delta_mean
         self.delta_sd = delta_sd
-
         self.pool_type = pool_type
+
         self.tune_method = tune_method
         self.override_slope_mean_for_tune = override_slope_mean_for_tune
         self.override_slope_sd_for_tune = override_slope_sd_for_tune
@@ -93,17 +93,25 @@ class LinearTrend(TimeSeriesModel):
         idata: az.InferenceData
             Sample from a posterior.
         """
+
         slope_key = f"lt_{self.model_idx} - slope"
+        delta_key = f"lt_{self.model_idx} - delta"
+
+        delta = (
+            (idata["posterior"][delta_key].to_numpy().sum(axis=2))
+            if delta_key in idata["posterior"]
+            else 0
+        )
 
         if self.override_slope_mean_for_tune is not None:
             slope_mean = self.override_slope_mean_for_tune
         else:
-            slope_mean = idata["posterior"][slope_key].to_numpy().mean()
+            slope_mean = (idata["posterior"][slope_key].to_numpy() + delta * 0).mean()
 
         if self.override_slope_sd_for_tune is not None:
             slope_sd = self.override_slope_sd_for_tune
         else:
-            slope_sd = idata["posterior"][slope_key].to_numpy().std()
+            slope_sd = (idata["posterior"][slope_key].to_numpy() + delta * 0).std()
 
         return slope_mean, slope_sd
 
@@ -126,10 +134,11 @@ class LinearTrend(TimeSeriesModel):
             series = data[data["series"] == group_name]
             delta = 0
             if delta_key in idata["posterior"]:
-                cp_before_min_t = (series["t"].min() > self.s).sum()
+                # cp_before_min_t = (series["t"].min() > self.s).sum()
                 delta = (
                     idata["posterior"][delta_key]
-                    .to_numpy()[:, :, :cp_before_min_t]
+                    .to_numpy()
+                    # .to_numpy()[:, :, :cp_before_min_t]
                     .sum(axis=2)
                     .mean()
                 )
@@ -254,18 +263,25 @@ class LinearTrend(TimeSeriesModel):
             self.s = np.array(large_series.iloc[cp_indexes]["t"].tail(-1))
             A = (t[:, None] > self.s) * 1
 
-            skipped_deltas = np.array(0)
+            slope_shared = 0
             if idata is not None and self.tune_method == "parametric":
-                _, slope_sd = self._get_slope_params_from_idata(idata)
-                skipped_deltas = self._get_skipped_deltas(data, idata)
+                slope_mu, slope_sd = self._get_slope_params_from_idata(idata)
+                slope_shared = pm.Normal(
+                    f"lt_{self.model_idx} - slope_shared", slope_mu, slope_sd
+                )
                 slope_sigma = pm.HalfCauchy(
                     f"lt_{self.model_idx} - slope_sigma",
                     beta=slope_sd / self.shrinkage_strength,
                 )
             elif priors is not None and self.tune_method == "prior_from_idata":
-                # TODO make it positive
-                slope_sigma = pm.Deterministic(
-                    f"lt_{self.model_idx} - slope_sigma", priors[f"prior_{slope_key}"]
+                # TODO use delta somehow for slope shared?
+                slope_mu, slope_sd = self._get_slope_params_from_idata(idata)
+                slope_shared = pm.Deterministic(
+                    f"lt_{self.model_idx} - slope_shared", priors[f"prior_{slope_key}"]
+                )
+                slope_sigma = pm.HalfCauchy(
+                    f"lt_{self.model_idx} - slope_sigma",
+                    beta=slope_sd / self.shrinkage_strength,
                 )
             else:
                 slope_sigma = pm.HalfCauchy(
@@ -279,29 +295,32 @@ class LinearTrend(TimeSeriesModel):
                 sigma=1,
                 shape=self.n_groups,
             )
-            slope = (
-                pm.Deterministic(
-                    f"lt_{self.model_idx} - slope",
-                    slope_z_offset * slope_sigma,
-                )
-                + skipped_deltas
+            slope = pm.Deterministic(
+                f"lt_{self.model_idx} - slope",
+                slope_shared + slope_z_offset * slope_sigma,
             )
 
             delta_sd = self.delta_sd
             if self.delta_sd is None:
                 delta_sd = pm.Exponential(f"lt_{self.model_idx} - tau", 1.5)
 
-            delta_sigma = pm.HalfCauchy(
-                f"lt_{self.model_idx} - delta_sigma", beta=delta_sd
-            )
-            delta_z_offset = pm.Laplace(
-                f"lt_{self.model_idx} - delta_z_offset",
-                0,
-                1,
-                shape=(self.n_groups, self.n_changepoints),
-            )
-            delta = pm.Deterministic(
-                f"lt_{self.model_idx} - delta", delta_z_offset * delta_sigma
+            # delta_sigma = pm.HalfCauchy(
+            #     f"lt_{self.model_idx} - delta_sigma", beta=delta_sd
+            # )
+            # delta_z_offset = pm.Laplace(
+            #     f"lt_{self.model_idx} - delta_z_offset",
+            #     0,
+            #     1,
+            #     shape=(self.n_groups, self.n_changepoints),
+            # )
+            # delta = pm.Deterministic(
+            #     f"lt_{self.model_idx} - delta", delta_z_offset * delta_sigma
+            # )
+            delta = pm.Laplace(
+                f"lt_{self.model_idx} - delta",
+                self.delta_mean,
+                delta_sd,
+                shape=self.n_changepoints,
             )
 
             intercept = pm.Normal(
@@ -311,11 +330,11 @@ class LinearTrend(TimeSeriesModel):
                 shape=self.n_groups,
             )
 
-            gamma = -self.s * delta[self.group]
+            gamma = -self.s * delta
 
-            return (
-                slope[self.group] + pm.math.sum(A * delta[self.group], axis=1)
-            ) * t + (intercept[self.group] + pm.math.sum(A * gamma, axis=1))
+            return (slope[self.group] + pm.math.sum(A * delta, axis=1)) * t + (
+                intercept[self.group] + pm.math.sum(A * gamma, axis=1)
+            )
 
     def definition(
         self,
@@ -393,7 +412,7 @@ class LinearTrend(TimeSeriesModel):
                         map_approx[f"lt_{self.model_idx} - slope"][group_code]
                         + np.dot(
                             new_A,
-                            map_approx[f"lt_{self.model_idx} - delta"][group_code],
+                            map_approx[f"lt_{self.model_idx} - delta"],
                         )
                     )
                     * future["t"]
@@ -401,10 +420,7 @@ class LinearTrend(TimeSeriesModel):
                         map_approx[f"lt_{self.model_idx} - intercept"][group_code]
                         + np.dot(
                             new_A,
-                            (
-                                -self.s
-                                * map_approx[f"lt_{self.model_idx} - delta"][group_code]
-                            ),
+                            (-self.s * map_approx[f"lt_{self.model_idx} - delta"]),
                         )
                     )
                 )
@@ -429,7 +445,7 @@ class LinearTrend(TimeSeriesModel):
                 slope.mean() * future["t"].to_numpy() + intercept.mean()
             )
         else:
-            new_A = (np.array(future["t"])[:, None] > self.s) * 1
+            new_A = (np.array(future["t"])[:, None] <= self.s) * 1
             delta = (
                 trace["posterior"][f"lt_{self.model_idx} - delta"]
                 .to_numpy()[:, :]
