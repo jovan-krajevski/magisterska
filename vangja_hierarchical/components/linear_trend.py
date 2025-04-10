@@ -401,7 +401,12 @@ class LinearTrend(TimeSeriesModel):
                 slope = pm.Normal(slope_key, slope_mu, slope_sd, shape=self.n_groups)
             elif priors is not None and self.tune_method == "prior_from_idata":
                 # TODO use delta somehow for slope shared?
-                slope = pm.Deterministic(slope_key, priors[f"prior_{slope_key}"])
+                slope = pm.Deterministic(
+                    slope_key,
+                    pm.math.stack(
+                        [priors[f"prior_{slope_key}"] for _ in range(self.n_groups)]
+                    ),
+                )
             else:
                 slope = pm.Normal(
                     slope_key, self.slope_mean, self.slope_sd, shape=self.n_groups
