@@ -242,6 +242,7 @@ class FourierSeasonality(TimeSeriesModel):
                     shape=2 * self.series_order,
                 )
             elif priors is not None and self.tune_method == "prior_from_idata":
+                beta_mean, beta_sd = self._get_beta_params_from_idata(idata)
                 beta_shared = pm.Deterministic(
                     f"fs_{self.model_idx} - beta_shared", priors[f"prior_{beta_key}"]
                 )
@@ -268,6 +269,88 @@ class FourierSeasonality(TimeSeriesModel):
                 beta_key,
                 beta_shared + beta_z_offset * beta_sigma,
             )
+
+            return pm.math.sum(x * beta[self.group], axis=1)
+
+    def _individual_definition(
+        self,
+        model: TimeSeriesModel,
+        data: pd.DataFrame,
+        priors: dict[str, pt.TensorVariable] | None,
+        idata: az.InferenceData | None,
+    ):
+        """
+        Add the FourierSeasonality parameters to the model when pool_type is individual.
+
+        Parameters
+        ----------
+        model: TimeSeriesModel
+            The model to which the parameters are added.
+        data : pd.DataFrame
+            A pandas dataframe that must at least have columns ds (predictor), y
+            (target) and series (name of time series).
+        priors: dict[str, pt.TensorVariable] | None
+            A dictionary of multivariate normal random variables approximating the
+            posterior sample in idata.
+        idata: az.InferenceData | None
+            Sample from a posterior. If it is not None, Vangja will use this to set the
+            parameters' priors in the model. If idata is not None, each component from
+            the model should specify how idata should be used to set its parameters'
+            priors.
+        """
+        with model:
+            x = self._fourier_series(data)
+            beta_key = (
+                f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
+            )
+
+            if idata is not None and self.tune_method == "parametric":
+                beta_mean, beta_sd = self._get_beta_params_from_idata(idata)
+                beta = pm.Normal(
+                    beta_key,
+                    beta_mean,
+                    beta_sd,
+                    shape=(self.n_groups, 2 * self.series_order),
+                )
+            elif priors is not None and self.tune_method == "prior_from_idata":
+                beta = pm.Deterministic(beta_key, priors[f"prior_{beta_key}"])
+            else:
+                beta = pm.Normal(
+                    beta_key,
+                    self.beta_mean,
+                    self.beta_sd,
+                    shape=(self.n_groups, 2 * self.series_order),
+                )
+
+            if idata is not None and self.tune_method is not None:
+                reg_ds = pd.DataFrame(
+                    {
+                        "ds": pd.date_range(
+                            "2000-01-01", periods=math.ceil(self.period), freq="D"
+                        )
+                    }
+                )
+                reg_x = self._fourier_series(reg_ds)
+                old = pm.math.sum(reg_x * beta_mean, axis=1)
+                new = pm.math.dot(beta, reg_x.T)
+                lam = np.array(
+                    [
+                        2 * data[self.group == group_code].shape[0]
+                        if self.period > 2 * data[self.group == group_code].shape[0]
+                        else 0
+                        for group_code in self.groups_
+                    ]
+                )
+                pm.Potential(
+                    f"{beta_key} - loss",
+                    self.loss_factor_for_tune
+                    * pm.math.sum(
+                        lam
+                        * pm.math.minimum(
+                            0, pm.math.dot(old, old) - pm.math.sum(new * new, axis=1)
+                        )
+                    ),
+                )
 
             return pm.math.sum(x * beta[self.group], axis=1)
 
@@ -313,8 +396,8 @@ class FourierSeasonality(TimeSeriesModel):
                 return self._complete_definition(model, data, priors, idata)
             elif self.pool_type == "partial":
                 return self._partial_definition(model, data, priors, idata)
-            elif self.pool_type == "indivudual":
-                pass
+            elif self.pool_type == "individual":
+                return self._individual_definition(model, data, priors, idata)
 
     def _get_initval(self, initvals: dict[str, float], model: pm.Model) -> dict:
         """Get the initval of the Fourier series coefficients parameters.
@@ -334,14 +417,15 @@ class FourierSeasonality(TimeSeriesModel):
     def _predict_map(self, future, map_approx):
         forecasts = []
         for group_code in self.groups_.keys():
+            beta = map_approx[
+                f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
+            ]
+            if self.pool_type != "complete":
+                beta = beta[group_code]
             forecasts.append(
-                self._det_seasonality_posterior(
-                    map_approx[
-                        f"fs_{self.model_idx} - beta(p={self.period},n={self.series_order})"
-                    ][group_code],
-                    self._fourier_series(future),
-                )
+                self._det_seasonality_posterior(beta, self._fourier_series(future))
             )
+            # breakpoint()
             future[f"fs_{self.model_idx}_{group_code}"] = forecasts[-1]
 
         return np.vstack(forecasts)

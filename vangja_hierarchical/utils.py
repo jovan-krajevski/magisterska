@@ -26,7 +26,7 @@ def get_group_definition(
     pool_cols = "series"
     if pool_type == "complete":
         group = np.zeros(len(data), dtype="int")
-        group_mapping = {0: "all"}
+        group_mapping = {0: data.iloc[0][pool_cols]}
         n_groups = 1
     else:
         data[pool_cols] = pd.Categorical(data[pool_cols])

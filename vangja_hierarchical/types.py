@@ -50,4 +50,4 @@ FreqStr = Literal[
 
 TuneMethod = Literal["parametric", "prior_from_idata"]
 
-PoolType = Literal["partial", "complete", "indivdual"]
+PoolType = Literal["partial", "complete", "individual"]

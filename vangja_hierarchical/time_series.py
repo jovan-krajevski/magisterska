@@ -111,7 +111,7 @@ class TimeSeriesModel:
     def fit(
         self,
         data: pd.DataFrame,
-        scale_mode: ScaleMode = "absmax",
+        scale_mode: ScaleMode = "maxabs",
         t_scale_params: TScaleParams | None = None,
         sigma_sd: float = 0.5,
         method: Method = "mapx",
@@ -200,7 +200,7 @@ class TimeSeriesModel:
                     start=initval_dict,
                     method="L-BFGS-B",
                     progressbar=progressbar,
-                    maxeval=1e-4,
+                    maxeval=1e4,
                 )
             elif self.method in ["fullrank_advi", "advi", "svgd", "asvgd"]:
                 approx = pm.fit(

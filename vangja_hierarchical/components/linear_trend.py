@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
+from typing import Literal
 
 from vangja_hierarchical.time_series import TimeSeriesModel
 from vangja_hierarchical.types import PoolType, TuneMethod
@@ -21,6 +22,7 @@ class LinearTrend(TimeSeriesModel):
         intercept_sd: float = 5,
         delta_mean: float = 0,
         delta_sd: float = 0.05,
+        delta_side: Literal["left", "right"] = "left",
         pool_type: PoolType = "partial",
         tune_method: TuneMethod | None = "parametric",
         override_slope_mean_for_tune: np.ndarray | None = None,
@@ -53,6 +55,10 @@ class LinearTrend(TimeSeriesModel):
             The standard deviation of the Laplace prior for the slope change in the
             potential changepoints. If delta_sd is None, the standard deviation becomes
             a random variable with a Exponential(lam=1.5) prior.
+        delta_side: Literal["left", "right"]
+            If set to "left", the slope parameter controls the slope of the trend at the
+            earliest ds. Otherwise, the slope parameter controls the slope of the trend
+            at the latest ds.
         pool_type: PoolType
             Type of pooling performed when sampling.
         tune_method: TuneMethod | None
@@ -76,6 +82,7 @@ class LinearTrend(TimeSeriesModel):
         self.intercept_sd = intercept_sd
         self.delta_mean = delta_mean
         self.delta_sd = delta_sd
+        self.delta_side = delta_side
         self.pool_type = pool_type
 
         self.tune_method = tune_method
@@ -99,19 +106,22 @@ class LinearTrend(TimeSeriesModel):
 
         delta = (
             (idata["posterior"][delta_key].to_numpy().sum(axis=2))
-            if delta_key in idata["posterior"]
+            # self.delta_side == "right" check because of how the model was pre-trained
+            # with the old implementation
+            # TODO change this on release
+            if delta_key in idata["posterior"] and self.delta_side == "right"
             else 0
         )
 
         if self.override_slope_mean_for_tune is not None:
             slope_mean = self.override_slope_mean_for_tune
         else:
-            slope_mean = (idata["posterior"][slope_key].to_numpy() + delta * 0).mean()
+            slope_mean = (idata["posterior"][slope_key].to_numpy() + delta).mean()
 
         if self.override_slope_sd_for_tune is not None:
             slope_sd = self.override_slope_sd_for_tune
         else:
-            slope_sd = (idata["posterior"][slope_key].to_numpy() + delta * 0).std()
+            slope_sd = (idata["posterior"][slope_key].to_numpy() + delta).std()
 
         return slope_mean, slope_sd
 
@@ -176,12 +186,10 @@ class LinearTrend(TimeSeriesModel):
         with model:
             t = np.array(data["t"])
             slope_key = f"lt_{self.model_idx} - slope"
-            skipped_deltas = 0
 
             if idata is not None and self.tune_method == "parametric":
                 slope_mean, slope_sd = self._get_slope_params_from_idata(idata)
-                skipped_deltas = self._get_skipped_deltas(data, idata)[0]
-                slope = pm.Normal(slope_key, slope_mean, slope_sd) + skipped_deltas
+                slope = pm.Normal(slope_key, slope_mean, slope_sd)
             elif priors is not None and self.tune_method == "prior_from_idata":
                 slope = pm.Deterministic(slope_key, priors[f"prior_{slope_key}"])
             else:
@@ -211,7 +219,10 @@ class LinearTrend(TimeSeriesModel):
                     .astype(int)
                 )
                 self.s = np.array(data.iloc[cp_indexes]["t"].tail(-1))
-                A = (t[:, None] > self.s) * 1
+                if self.delta_side == "left":
+                    A = (t[:, None] > self.s) * 1
+                else:
+                    A = (t[:, None] <= self.s) * 1
 
                 gamma = -self.s * delta
                 trend = (slope + pm.math.sum(A * delta, axis=1)) * t + (
@@ -261,7 +272,10 @@ class LinearTrend(TimeSeriesModel):
                 .astype(int)
             )
             self.s = np.array(large_series.iloc[cp_indexes]["t"].tail(-1))
-            A = (t[:, None] > self.s) * 1
+            if self.delta_side == "left":
+                A = (t[:, None] > self.s) * 1
+            else:
+                A = (t[:, None] <= self.s) * 1
 
             slope_shared = 0
             if idata is not None and self.tune_method == "parametric":
@@ -330,11 +344,92 @@ class LinearTrend(TimeSeriesModel):
                 shape=self.n_groups,
             )
 
+            # pm.Potential(f"{slope_key} - loss", pt.std(slope))
+
             gamma = -self.s * delta
 
             return (slope[self.group] + pm.math.sum(A * delta, axis=1)) * t + (
                 intercept[self.group] + pm.math.sum(A * gamma, axis=1)
             )
+
+    def _individual_definition(
+        self,
+        model: TimeSeriesModel,
+        data: pd.DataFrame,
+        priors: dict[str, pt.TensorVariable] | None,
+        idata: az.InferenceData | None,
+    ):
+        """
+        Add the LinearTrend parameters to the model when pool_type is individual.
+
+        Parameters
+        ----------
+        model: TimeSeriesModel
+            The model to which the parameters are added.
+        data : pd.DataFrame
+            A pandas dataframe that must at least have columns ds (predictor), y
+            (target) and series (name of time series).
+        priors: dict[str, pt.TensorVariable] | None
+            A dictionary of multivariate normal random variables approximating the
+            posterior sample in idata.
+        idata: az.InferenceData | None
+            Sample from a posterior. If it is not None, Vangja will use this to set the
+            parameters' priors in the model. If idata is not None, each component from
+            the model should specify how idata should be used to set its parameters'
+            priors.
+        """
+        with model:
+            slope_key = f"lt_{self.model_idx} - slope"
+            t = np.array(data["t"])
+
+            # calculate change points on first time series
+            large_series = data[data["series"] == data["series"].iloc[0]]
+            hist_size = int(np.floor(large_series.shape[0] * self.changepoint_range))
+            cp_indexes = (
+                np.linspace(0, hist_size - 1, self.n_changepoints + 1)
+                .round()
+                .astype(int)
+            )
+            self.s = np.array(large_series.iloc[cp_indexes]["t"].tail(-1))
+            if self.delta_side == "left":
+                A = (t[:, None] > self.s) * 1
+            else:
+                A = (t[:, None] <= self.s) * 1
+
+            if idata is not None and self.tune_method == "parametric":
+                slope_mu, slope_sd = self._get_slope_params_from_idata(idata)
+                slope = pm.Normal(slope_key, slope_mu, slope_sd, shape=self.n_groups)
+            elif priors is not None and self.tune_method == "prior_from_idata":
+                # TODO use delta somehow for slope shared?
+                slope = pm.Deterministic(slope_key, priors[f"prior_{slope_key}"])
+            else:
+                slope = pm.Normal(
+                    slope_key, self.slope_mean, self.slope_sd, shape=self.n_groups
+                )
+
+            delta_sd = self.delta_sd
+            if self.delta_sd is None:
+                delta_sd = pm.Exponential(f"lt_{self.model_idx} - tau", 1.5)
+
+            delta = pm.Laplace(
+                f"lt_{self.model_idx} - delta",
+                self.delta_mean,
+                delta_sd,
+                shape=(self.n_groups, self.n_changepoints),
+            )
+
+            intercept = pm.Normal(
+                f"lt_{self.model_idx} - intercept",
+                self.intercept_mean,
+                self.intercept_sd,
+                shape=self.n_groups,
+            )
+
+            gamma = -self.s * delta[self.group]
+
+            return (
+                slope[self.group] + pm.math.sum(A * delta[self.group], axis=1)
+            ) * t + (intercept[self.group] + pm.math.sum(A * gamma, axis=1))
 
     def definition(
         self,
@@ -378,8 +473,8 @@ class LinearTrend(TimeSeriesModel):
                 return self._complete_definition(model, data, priors, idata)
             elif self.pool_type == "partial":
                 return self._partial_definition(model, data, priors, idata)
-            elif self.pool_type == "indivudual":
-                pass
+            elif self.pool_type == "individual":
+                return self._individual_definition(model, data, priors, idata)
 
     def _get_initval(self, initvals: dict[str, float], model: pm.Model) -> dict:
         """Get the initval of the slope and the intercept of the linear trend.
@@ -405,27 +500,31 @@ class LinearTrend(TimeSeriesModel):
     def _predict_map(self, future, map_approx):
         forecasts = []
         for group_code in self.groups_.keys():
-            new_A = (np.array(future["t"])[:, None] > self.s) * 1
-            forecasts.append(
-                np.array(
-                    (
-                        map_approx[f"lt_{self.model_idx} - slope"][group_code]
-                        + np.dot(
-                            new_A,
-                            map_approx[f"lt_{self.model_idx} - delta"],
-                        )
-                    )
-                    * future["t"]
-                    + (
-                        map_approx[f"lt_{self.model_idx} - intercept"][group_code]
-                        + np.dot(
-                            new_A,
-                            (-self.s * map_approx[f"lt_{self.model_idx} - delta"]),
-                        )
-                    )
-                )
-            )
+            slope_correction = 0
+            intercept_correction = 0
+            if self.n_changepoints > 0:
+                if self.delta_side == "left":
+                    new_A = (np.array(future["t"])[:, None] > self.s) * 1
+                else:
+                    new_A = (np.array(future["t"])[:, None] <= self.s) * 1
 
+                delta = map_approx[f"lt_{self.model_idx} - delta"]
+                if self.pool_type == "individual":
+                    delta = delta[group_code]
+
+                slope_correction = new_A @ delta
+                intercept_correction = new_A @ (-self.s * delta)
+
+            slope = map_approx[f"lt_{self.model_idx} - slope"]
+            intercept = map_approx[f"lt_{self.model_idx} - intercept"]
+            if self.pool_type != "complete":
+                slope = slope[group_code]
+                intercept = intercept[group_code]
+
+            slope = slope + slope_correction
+            intercept = intercept + intercept_correction
+
+            forecasts.append(np.array(slope * future["t"] + intercept))
             future[f"lt_{self.model_idx}_{group_code}"] = forecasts[-1]
 
         return np.vstack(forecasts)
@@ -445,7 +544,11 @@ class LinearTrend(TimeSeriesModel):
                 slope.mean() * future["t"].to_numpy() + intercept.mean()
             )
         else:
-            new_A = (np.array(future["t"])[:, None] <= self.s) * 1
+            if self.delta_side == "left":
+                new_A = (np.array(future["t"])[:, None] > self.s) * 1
+            else:
+                new_A = (np.array(future["t"])[:, None] <= self.s) * 1
+
             delta = (
                 trace["posterior"][f"lt_{self.model_idx} - delta"]
                 .to_numpy()[:, :]
