@@ -164,7 +164,7 @@ class TimeSeriesModel:
 
         with self.model:
             priors = None
-            if idata is not None:
+            if idata is not None and self.needs_priors():
                 priors = pmx.utils.prior.prior_from_idata(
                     idata,
                     name="priors",
@@ -383,6 +383,9 @@ class TimeSeriesModel:
             plot_params, future, self.data, self.scale_params, y_true, group_code
         )
 
+    def needs_priors(self, *args, **kwargs):
+        return False
+
     def __add__(self, other):
         return AdditiveTimeSeries(self, other)
 
@@ -424,6 +427,17 @@ class CombinedTimeSeries(TimeSeriesModel):
 
         if not (type(self.right) is int or type(self.right) is float):
             self.right._plot(*args, **kwargs)
+
+    def needs_priors(self, *args, **kwargs):
+        left = False
+        right = False
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left.needs_priors(*args, **kwargs)
+
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right.needs_priors(*args, **kwargs)
+
+        return left or right
 
 
 class AdditiveTimeSeries(CombinedTimeSeries):

@@ -28,7 +28,7 @@ class LinearTrend(TimeSeriesModel):
         override_slope_mean_for_tune: np.ndarray | None = None,
         override_slope_sd_for_tune: np.ndarray | None = None,
         shrinkage_strength: float = 100,
-        # loss_factor_for_tune: float = 0,
+        loss_factor_for_tune: float = 0,
     ):
         """
         Crate a Linear Trend model component.
@@ -73,6 +73,8 @@ class LinearTrend(TimeSeriesModel):
             with this value.
         shrinkage_strength: float
             Shrinkage between groups for the hierarchical modeling.
+        loss_factor_for_tune: float
+            Regularization factor for transfer learning.
         """
         self.n_changepoints = n_changepoints
         self.changepoint_range = changepoint_range
@@ -89,6 +91,7 @@ class LinearTrend(TimeSeriesModel):
         self.override_slope_mean_for_tune = override_slope_mean_for_tune
         self.override_slope_sd_for_tune = override_slope_sd_for_tune
         self.shrinkage_strength = shrinkage_strength
+        self.loss_factor_for_tune = loss_factor_for_tune
 
     def _get_slope_params_from_idata(self, idata: az.InferenceData):
         """
@@ -112,6 +115,9 @@ class LinearTrend(TimeSeriesModel):
             if delta_key in idata["posterior"] and self.delta_side == "right"
             else 0
         )
+
+        # print(delta)
+        # breakpoint()
 
         if self.override_slope_mean_for_tune is not None:
             slope_mean = self.override_slope_mean_for_tune
@@ -191,6 +197,7 @@ class LinearTrend(TimeSeriesModel):
                 slope_mean, slope_sd = self._get_slope_params_from_idata(idata)
                 slope = pm.Normal(slope_key, slope_mean, slope_sd)
             elif priors is not None and self.tune_method == "prior_from_idata":
+                slope_mean, slope_sd = self._get_slope_params_from_idata(idata)
                 slope = pm.Deterministic(slope_key, priors[f"prior_{slope_key}"])
             else:
                 slope = pm.Normal(slope_key, self.slope_mean, self.slope_sd)
@@ -230,6 +237,12 @@ class LinearTrend(TimeSeriesModel):
                 )
             else:
                 trend = slope * t + intercept
+
+            if idata is not None and self.tune_method is not None:
+                pm.Potential(
+                    f"{slope_key} - loss",
+                    self.loss_factor_for_tune * pm.math.abs(slope - slope_mean),
+                )
 
             return trend
 
@@ -401,27 +414,20 @@ class LinearTrend(TimeSeriesModel):
                 slope = pm.Normal(slope_key, slope_mu, slope_sd, shape=self.n_groups)
             elif priors is not None and self.tune_method == "prior_from_idata":
                 # TODO use delta somehow for slope shared?
+                slope_mu, slope_sd = self._get_slope_params_from_idata(idata)
                 slope = pm.Deterministic(
                     slope_key,
                     pm.math.stack(
                         [priors[f"prior_{slope_key}"] for _ in range(self.n_groups)]
                     ),
                 )
+                # slope = pm.Deterministic(
+                #     slope_key, pt.tile(priors[f"prior_{slope_key}"], self.n_groups)
+                # )
             else:
                 slope = pm.Normal(
                     slope_key, self.slope_mean, self.slope_sd, shape=self.n_groups
                 )
-
-            delta_sd = self.delta_sd
-            if self.delta_sd is None:
-                delta_sd = pm.Exponential(f"lt_{self.model_idx} - tau", 1.5)
-
-            delta = pm.Laplace(
-                f"lt_{self.model_idx} - delta",
-                self.delta_mean,
-                delta_sd,
-                shape=(self.n_groups, self.n_changepoints),
-            )
 
             intercept = pm.Normal(
                 f"lt_{self.model_idx} - intercept",
@@ -430,11 +436,32 @@ class LinearTrend(TimeSeriesModel):
                 shape=self.n_groups,
             )
 
-            gamma = -self.s * delta[self.group]
+            if idata is not None and self.tune_method is not None:
+                pm.Potential(
+                    f"{slope_key} - loss",
+                    self.loss_factor_for_tune
+                    * pm.math.sum(pm.math.sqr(slope - slope_mu)),
+                )
 
-            return (
-                slope[self.group] + pm.math.sum(A * delta[self.group], axis=1)
-            ) * t + (intercept[self.group] + pm.math.sum(A * gamma, axis=1))
+            if self.n_changepoints:
+                delta_sd = self.delta_sd
+                if self.delta_sd is None:
+                    delta_sd = pm.Exponential(f"lt_{self.model_idx} - tau", 1.5)
+
+                delta = pm.Laplace(
+                    f"lt_{self.model_idx} - delta",
+                    self.delta_mean,
+                    delta_sd,
+                    shape=(self.n_groups, self.n_changepoints),
+                )
+
+                gamma = -self.s * delta[self.group]
+
+                return (
+                    slope[self.group] + pm.math.sum(A * delta[self.group], axis=1)
+                ) * t + (intercept[self.group] + pm.math.sum(A * gamma, axis=1))
+            else:
+                return slope[self.group] * t + intercept[self.group]
 
     def definition(
         self,
@@ -576,6 +603,9 @@ class LinearTrend(TimeSeriesModel):
         plt.plot(future["ds"], future[f"lt_{self.model_idx}{series}"], lw=1)
 
         plt.legend()
+
+    def needs_priors(self, *args, **kwargs):
+        return self.tune_method == "prior_from_idata"
 
     def __str__(self):
         return f"LT(n={self.n_changepoints},r={self.changepoint_range},tm={self.tune_method})"

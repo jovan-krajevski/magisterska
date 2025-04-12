@@ -315,11 +315,14 @@ class FourierSeasonality(TimeSeriesModel):
             elif priors is not None and self.tune_method == "prior_from_idata":
                 beta_mean, beta_sd = self._get_beta_params_from_idata(idata)
                 # beta = pm.Deterministic(beta_key, priors[f"prior_{beta_key}"])
+                # beta = pm.Deterministic(
+                #     beta_key,
+                #     pm.math.stack(
+                #         [priors[f"prior_{beta_key}"] for _ in range(self.n_groups)]
+                #     ),
+                # )
                 beta = pm.Deterministic(
-                    beta_key,
-                    pm.math.stack(
-                        [priors[f"prior_{beta_key}"] for _ in range(self.n_groups)]
-                    ),
+                    beta_key, pt.tile(priors[f"prior_{beta_key}"], (self.n_groups, 1))
                 )
             else:
                 beta = pm.Normal(
