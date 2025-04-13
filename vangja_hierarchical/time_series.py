@@ -18,7 +18,7 @@ from vangja_hierarchical.utils import get_group_definition
 
 class TimeSeriesModel:
     data: pd.DataFrame
-    y_scale_params: YScaleParams
+    y_scale_params: YScaleParams | dict[int, YScaleParams]
     t_scale_params: TScaleParams
 
     group: np.ndarray
@@ -32,6 +32,27 @@ class TimeSeriesModel:
     initvals: dict[str, float]
     map_approx: dict[str, np.ndarray] | None
     trace: az.InferenceData | None
+
+    def _get_scale_params(
+        self, series: pd.DataFrame, mode: ScaleMode, t_scale_params: TScaleParams | None
+    ) -> tuple[TScaleParams, YScaleParams]:
+        return (
+            (
+                t_scale_params
+                if t_scale_params is not None
+                else {
+                    "ds_min": series["ds"].min(),
+                    "ds_max": series["ds"].max(),
+                }
+            ),
+            {
+                "mode": mode,
+                "y_min": 0 if mode == "maxabs" else series["y"].min(),
+                "y_max": series["y"].abs().max()
+                if mode == "maxabs"
+                else series["y"].max(),
+            },
+        )
 
     def _process_data(
         self, data: pd.DataFrame, mode: ScaleMode, t_scale_params: TScaleParams | None
@@ -50,31 +71,43 @@ class TimeSeriesModel:
         """
         self.data = data.reset_index(drop=True)
         self.data["ds"] = pd.to_datetime(self.data["ds"])
+        self.data["t"] = 0.0
         self.data.sort_values("ds", inplace=True)
 
         self.group, self.n_groups, self.groups_ = get_group_definition(
             self.data, "partial"
         )
 
-        self.t_scale_params = (
-            t_scale_params
-            if t_scale_params is not None
-            else {
-                "ds_min": self.data["ds"].min(),
-                "ds_max": self.data["ds"].max(),
-            }
+        if self.is_individual():
+            self.t_scale_params, _ = self._get_scale_params(
+                self.data, mode, t_scale_params
+            )
+            self.y_scale_params = {}
+
+            for group_code, group_name in self.groups_.items():
+                _, y_params = self._get_scale_params(
+                    self.data[self.data["series"] == group_name], mode, t_scale_params
+                )
+
+                self.data.loc[self.data["series"] == group_name, "t"] = (
+                    self.data.loc[self.data["series"] == group_name, "ds"]
+                    - self.t_scale_params["ds_min"]
+                ) / (self.t_scale_params["ds_max"] - self.t_scale_params["ds_min"])
+                self.data.loc[self.data["series"] == group_name, "y"] = (
+                    self.data.loc[self.data["series"] == group_name, "y"]
+                    - y_params["y_min"]
+                ) / (y_params["y_max"] - y_params["y_min"])
+
+                self.y_scale_params[group_code] = y_params
+
+            return
+
+        self.t_scale_params, self.y_scale_params = self._get_scale_params(
+            self.data, mode, t_scale_params
         )
         self.data["t"] = (self.data["ds"] - self.t_scale_params["ds_min"]) / (
             self.t_scale_params["ds_max"] - self.t_scale_params["ds_min"]
         )
-
-        self.y_scale_params = {
-            "mode": mode,
-            "y_min": 0 if mode == "maxabs" else self.data["y"].min(),
-            "y_max": self.data["y"].abs().max()
-            if mode == "maxabs"
-            else self.data["y"].max(),
-        }
         self.data["y"] = (self.data["y"] - self.y_scale_params["y_min"]) / (
             self.y_scale_params["y_max"] - self.y_scale_params["y_min"]
         )
@@ -175,8 +208,10 @@ class TimeSeriesModel:
                 )
 
             mu = self.definition(self.model, self.data, self.model_idxs, priors, idata)
-            sigma = pm.HalfNormal("sigma", sigma_sd)
-            _ = pm.Normal("obs", mu=mu, sigma=sigma, observed=self.data["y"])
+            sigma = pm.HalfNormal("sigma", sigma_sd, shape=self.n_groups)
+            _ = pm.Normal(
+                "obs", mu=mu, sigma=sigma[self.group], observed=self.data["y"]
+            )
 
             self.map_approx = None
             self.trace = None
@@ -282,18 +317,30 @@ class TimeSeriesModel:
         """
         future = self._make_future_df(horizon, freq)
         forecasts = self._predict(future, self.method, self.map_approx, self.trace)
+        is_individual = self.is_individual()
 
         for group_code in range(forecasts.shape[0]):
-            future[f"yhat_{group_code}"] = (
-                forecasts[group_code] * self.y_scale_params["y_max"]
-            )
+            if is_individual:
+                future[f"yhat_{group_code}"] = (
+                    forecasts[group_code] * self.y_scale_params[group_code]["y_max"]
+                )
+            else:
+                future[f"yhat_{group_code}"] = (
+                    forecasts[group_code] * self.y_scale_params["y_max"]
+                )
+
             for model_type, model_cnt in self.model_idxs.items():
                 if model_type.startswith("lt") is False:
                     continue
                 for model_idx in range(model_cnt):
                     component = f"{model_type}_{model_idx}_{group_code}"
                     if component in future.columns:
-                        future[component] *= self.y_scale_params["y_max"]
+                        if is_individual:
+                            future[component] *= self.y_scale_params[group_code][
+                                "y_max"
+                            ]
+                        else:
+                            future[component] *= self.y_scale_params["y_max"]
 
         return future
 
@@ -386,6 +433,9 @@ class TimeSeriesModel:
     def needs_priors(self, *args, **kwargs):
         return False
 
+    def is_individual(self, *args, **kwargs):
+        return self.pool_type == "individual"
+
     def __add__(self, other):
         return AdditiveTimeSeries(self, other)
 
@@ -438,6 +488,17 @@ class CombinedTimeSeries(TimeSeriesModel):
             right = self.right.needs_priors(*args, **kwargs)
 
         return left or right
+
+    def is_individual(self, *args, **kwargs):
+        left = True
+        right = True
+        if not (type(self.left) is int or type(self.left) is float):
+            left = self.left.is_individual(*args, **kwargs)
+
+        if not (type(self.right) is int or type(self.right) is float):
+            right = self.right.is_individual(*args, **kwargs)
+
+        return left and right
 
 
 class AdditiveTimeSeries(CombinedTimeSeries):
