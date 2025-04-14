@@ -64,7 +64,7 @@ for tune_trend in model_params["tune_trend"]:
                     }
                 )
 
-parent_path = Path("./") / "out" / "vangja3"
+parent_path = Path("./") / "out" / "vangja4"
 parent_path.mkdir(parents=True, exist_ok=True)
 pd.DataFrame.from_records(model_params_combined).to_csv(
     parent_path / "model_params.csv"
