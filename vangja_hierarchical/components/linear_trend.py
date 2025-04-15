@@ -1,10 +1,11 @@
+from typing import Literal
+
 import arviz as az
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytensor.tensor as pt
-from typing import Literal
 
 from vangja_hierarchical.time_series import TimeSeriesModel
 from vangja_hierarchical.types import PoolType, TuneMethod
@@ -115,9 +116,6 @@ class LinearTrend(TimeSeriesModel):
             if delta_key in idata["posterior"] and self.delta_side == "right"
             else 0
         )
-
-        # print(delta)
-        # breakpoint()
 
         if self.override_slope_mean_for_tune is not None:
             slope_mean = self.override_slope_mean_for_tune
@@ -248,7 +246,7 @@ class LinearTrend(TimeSeriesModel):
 
     def _partial_definition(
         self,
-        model: TimeSeriesModel,
+        model: pm.Model,
         data: pd.DataFrame,
         priors: dict[str, pt.TensorVariable] | None,
         idata: az.InferenceData | None,
@@ -258,7 +256,7 @@ class LinearTrend(TimeSeriesModel):
 
         Parameters
         ----------
-        model: TimeSeriesModel
+        model: pm.Model
             The model to which the parameters are added.
         data : pd.DataFrame
             A pandas dataframe that must at least have columns ds (predictor), y
@@ -357,7 +355,12 @@ class LinearTrend(TimeSeriesModel):
                 shape=self.n_groups,
             )
 
-            # pm.Potential(f"{slope_key} - loss", pt.std(slope))
+            if idata is not None and self.tune_method is not None:
+                pm.Potential(
+                    f"{slope_key} - loss",
+                    self.loss_factor_for_tune
+                    * pm.math.sum(pm.math.sqr(slope - slope_mu)),
+                )
 
             gamma = -self.s * delta
 
@@ -367,7 +370,7 @@ class LinearTrend(TimeSeriesModel):
 
     def _individual_definition(
         self,
-        model: TimeSeriesModel,
+        model: pm.Model,
         data: pd.DataFrame,
         priors: dict[str, pt.TensorVariable] | None,
         idata: az.InferenceData | None,
@@ -377,7 +380,7 @@ class LinearTrend(TimeSeriesModel):
 
         Parameters
         ----------
-        model: TimeSeriesModel
+        model: pm.Model
             The model to which the parameters are added.
         data : pd.DataFrame
             A pandas dataframe that must at least have columns ds (predictor), y

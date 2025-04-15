@@ -9,7 +9,9 @@ from vangja_hierarchical.types import (
     FreqStr,
     Method,
     NutsSampler,
+    PoolType,
     ScaleMode,
+    Scaler,
     TScaleParams,
     YScaleParams,
 )
@@ -34,7 +36,7 @@ class TimeSeriesModel:
     trace: az.InferenceData | None
 
     def _get_scale_params(
-        self, series: pd.DataFrame, mode: ScaleMode, t_scale_params: TScaleParams | None
+        self, series: pd.DataFrame, scaler: Scaler, t_scale_params: TScaleParams | None
     ) -> tuple[TScaleParams, YScaleParams]:
         return (
             (
@@ -46,16 +48,20 @@ class TimeSeriesModel:
                 }
             ),
             {
-                "mode": mode,
-                "y_min": 0 if mode == "maxabs" else series["y"].min(),
+                "scaler": scaler,
+                "y_min": 0 if scaler == "maxabs" else series["y"].min(),
                 "y_max": series["y"].abs().max()
-                if mode == "maxabs"
+                if scaler == "maxabs"
                 else series["y"].max(),
             },
         )
 
     def _process_data(
-        self, data: pd.DataFrame, mode: ScaleMode, t_scale_params: TScaleParams | None
+        self,
+        data: pd.DataFrame,
+        scaler: Scaler,
+        scale_mode: ScaleMode,
+        t_scale_params: TScaleParams | None,
     ) -> None:
         """Converts dataframe to correct format and scale dates and values.
 
@@ -64,8 +70,10 @@ class TimeSeriesModel:
         data : pd.DataFrame
             A pandas dataframe that must at least have columns ds (predictor), y
             (target) and series (name of time series).
-        mode: ScaleMode
+        scaler: Scaler
             Whether to use maxabs or minmax scaling of the y (target).
+        scale_mode: ScaleMode
+            Whether to scale each series individually or together.
         t_scale_params: TScaleParams | None
             Whether to override scale parameters for ds (predictor).
         """
@@ -78,15 +86,15 @@ class TimeSeriesModel:
             self.data, "partial"
         )
 
-        if self.is_individual():
+        if scale_mode == "individual":
             self.t_scale_params, _ = self._get_scale_params(
-                self.data, mode, t_scale_params
+                self.data, scaler, t_scale_params
             )
             self.y_scale_params = {}
 
             for group_code, group_name in self.groups_.items():
                 _, y_params = self._get_scale_params(
-                    self.data[self.data["series"] == group_name], mode, t_scale_params
+                    self.data[self.data["series"] == group_name], scaler, t_scale_params
                 )
 
                 self.data.loc[self.data["series"] == group_name, "t"] = (
@@ -103,7 +111,7 @@ class TimeSeriesModel:
             return
 
         self.t_scale_params, self.y_scale_params = self._get_scale_params(
-            self.data, mode, t_scale_params
+            self.data, scaler, t_scale_params
         )
         self.data["t"] = (self.data["ds"] - self.t_scale_params["ds_min"]) / (
             self.t_scale_params["ds_max"] - self.t_scale_params["ds_min"]
@@ -144,9 +152,12 @@ class TimeSeriesModel:
     def fit(
         self,
         data: pd.DataFrame,
-        scale_mode: ScaleMode = "maxabs",
+        scaler: Scaler = "maxabs",
+        scale_mode: ScaleMode = "individual",
         t_scale_params: TScaleParams | None = None,
         sigma_sd: float = 0.5,
+        sigma_pool_type: PoolType = "complete",
+        sigma_shrinkage_strength: float = 1,
         method: Method = "mapx",
         samples: int = 0,
         chains: int = 4,
@@ -163,12 +174,18 @@ class TimeSeriesModel:
         data : pd.DataFrame
             A pandas dataframe that must at least have columns ds (predictor), y
             (target) and series (name of time series).
-        scale_mode: ScaleMode
+        scaler: Scaler
             Whether to use maxabs or minmax scaling of the y (target).
+        scale_mode: ScaleMode
+            Whether to scale each series individually or together.
         t_scale_params: TScaleParams | None
             Whether to override scale parameters for ds (predictor).
         sigma_sd: float
             The standard deviation of the Normal prior of y (target).
+        sigma_pool_type: PoolType
+            Type of pooling for the sigma parameter that is performed when sampling.
+        sigma_shrinkage_strength: float
+            Shrinkage between groups for the hierarchical modeling.
         method: Method
             The Bayesian inference method to be used. Either a point estimate MAP), a
             VI method (advi etc.) or full Bayesian sampling (MCMC).
@@ -188,7 +205,7 @@ class TimeSeriesModel:
             the model should specify how idata should be used to set its parameters'
             priors.
         """
-        self._process_data(data, scale_mode, t_scale_params)
+        self._process_data(data, scaler, scale_mode, t_scale_params)
 
         self.model = pm.Model()
         self.model_idxs = {}
@@ -208,10 +225,23 @@ class TimeSeriesModel:
                 )
 
             mu = self.definition(self.model, self.data, self.model_idxs, priors, idata)
-            sigma = pm.HalfNormal("sigma", sigma_sd, shape=self.n_groups)
-            _ = pm.Normal(
-                "obs", mu=mu, sigma=sigma[self.group], observed=self.data["y"]
-            )
+            if sigma_pool_type == "partial":
+                sigma_sigma = pm.HalfCauchy(
+                    "sigma_sigma", sigma_sd / sigma_shrinkage_strength
+                )
+                sigma_offset = pm.HalfNormal("sigma_offset", 1, shape=self.n_groups)
+                sigma = pm.Deterministic("sigma", sigma_offset * sigma_sigma)
+                _ = pm.Normal(
+                    "obs", mu=mu, sigma=sigma[self.group], observed=self.data["y"]
+                )
+            elif sigma_pool_type == "individual":
+                sigma = pm.HalfNormal("sigma", sigma_sd, shape=self.n_groups)
+                _ = pm.Normal(
+                    "obs", mu=mu, sigma=sigma[self.group], observed=self.data["y"]
+                )
+            else:
+                sigma = pm.HalfNormal("sigma", sigma_sd)
+                _ = pm.Normal("obs", mu=mu, sigma=sigma, observed=self.data["y"])
 
             self.map_approx = None
             self.trace = None
@@ -228,7 +258,7 @@ class TimeSeriesModel:
                     progressbar=progressbar,
                     gradient_backend="jax",
                     compile_kwargs={"mode": "JAX"},
-                    options={"maxiter": 1e6},
+                    options={"maxiter": 1e4},
                 )
             elif self.method == "map":
                 self.map_approx = pm.find_MAP(
@@ -317,7 +347,8 @@ class TimeSeriesModel:
         """
         future = self._make_future_df(horizon, freq)
         forecasts = self._predict(future, self.method, self.map_approx, self.trace)
-        is_individual = self.is_individual()
+        # TODO come up with a better way to check this
+        is_individual = "scaler" not in self.y_scale_params
 
         for group_code in range(forecasts.shape[0]):
             if is_individual:

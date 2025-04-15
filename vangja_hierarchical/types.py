@@ -1,10 +1,11 @@
 from typing import Literal, TypedDict
 
-ScaleMode = Literal["maxabs", "minmax"]
+Scaler = Literal["maxabs", "minmax"]
+ScaleMode = Literal["individual", "complete"]
 
 
 class YScaleParams(TypedDict):
-    mode: ScaleMode
+    scaler: Scaler
     y_min: float
     y_max: float
 

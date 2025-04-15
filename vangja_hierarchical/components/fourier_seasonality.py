@@ -143,7 +143,7 @@ class FourierSeasonality(TimeSeriesModel):
 
         Parameters
         ----------
-        model: TimeSeriesModel
+        model: pm.Model
             The model to which the parameters are added.
         data : pd.DataFrame
             A pandas dataframe that must at least have columns ds (predictor), y
@@ -202,7 +202,7 @@ class FourierSeasonality(TimeSeriesModel):
 
     def _partial_definition(
         self,
-        model: TimeSeriesModel,
+        model: pm.Model,
         data: pd.DataFrame,
         priors: dict[str, pt.TensorVariable] | None,
         idata: az.InferenceData | None,
@@ -212,7 +212,7 @@ class FourierSeasonality(TimeSeriesModel):
 
         Parameters
         ----------
-        model: TimeSeriesModel
+        model: pm.Model
             The model to which the parameters are added.
         data : pd.DataFrame
             A pandas dataframe that must at least have columns ds (predictor), y
@@ -270,11 +270,41 @@ class FourierSeasonality(TimeSeriesModel):
                 beta_shared + beta_z_offset * beta_sigma,
             )
 
+            if idata is not None and self.tune_method is not None:
+                reg_ds = pd.DataFrame(
+                    {
+                        "ds": pd.date_range(
+                            "2000-01-01", periods=math.ceil(self.period), freq="D"
+                        )
+                    }
+                )
+                reg_x = self._fourier_series(reg_ds)
+                old = pm.math.sum(reg_x * beta_mean, axis=1)
+                new = pm.math.dot(beta, reg_x.T)
+                lam = np.array(
+                    [
+                        2 * data[self.group == group_code].shape[0]
+                        if self.period > 2 * data[self.group == group_code].shape[0]
+                        else 0
+                        for group_code in self.groups_
+                    ]
+                )
+                pm.Potential(
+                    f"{beta_key} - loss",
+                    self.loss_factor_for_tune
+                    * pm.math.sum(
+                        lam
+                        * pm.math.minimum(
+                            0, pm.math.dot(old, old) - pm.math.sum(new * new, axis=1)
+                        )
+                    ),
+                )
+
             return pm.math.sum(x * beta[self.group], axis=1)
 
     def _individual_definition(
         self,
-        model: TimeSeriesModel,
+        model: pm.Model,
         data: pd.DataFrame,
         priors: dict[str, pt.TensorVariable] | None,
         idata: az.InferenceData | None,
@@ -284,7 +314,7 @@ class FourierSeasonality(TimeSeriesModel):
 
         Parameters
         ----------
-        model: TimeSeriesModel
+        model: pm.Model
             The model to which the parameters are added.
         data : pd.DataFrame
             A pandas dataframe that must at least have columns ds (predictor), y
