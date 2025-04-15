@@ -14,6 +14,7 @@ from vangja.data_utils import (
     process_data,
 )
 from vangja_hierarchical.components import FourierSeasonality, LinearTrend
+from vangja_hierarchical.time_series import TimeSeriesModel
 from vangja_hierarchical.utils import get_group_definition, metrics
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
@@ -61,7 +62,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
 
     model_metrics = {}
     model_maps = {}
-    models = []
+    models: list[TimeSeriesModel] = []
 
     train_df_smp, test_df_smp, scales_smp = generate_train_test_df_around_point(
         window=365 * 40, horizon=365, dfs=smp, for_prophet=False, point=points
@@ -102,6 +103,9 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         )
     )
 
+    train_data = pd.concat([train_df_smp, train_df_tickers])
+    test_data = pd.concat([test_df_smp, test_df_tickers])
+
     # test_group, _, test_groups_ = get_group_definition(train_df_tickers, "partial")
     # local_scale = {}
     # for group_code, group_name in test_groups_.items():
@@ -117,7 +121,12 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     #     local_scale[group_code] = (min_y, max_y)
 
     for idx, model in enumerate(tqdm(models)):
-        model.fit(train_df_tickers, progressbar=False)
+        model.fit(
+            train_data,
+            progressbar=False,
+            scale_mode="individual",
+            sigma_pool_type="complete",
+        )
         yhat = model.predict(365)
 
         # for group_code in test_groups_.keys():
@@ -127,7 +136,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         #             yhat[f"yhat_{group_code}"] - min_smp_y
         #         ) / (max_smp_y - min_smp_y) * (max_y - min_y) + min_y
 
-        model_metrics[idx] = metrics(test_df_tickers, yhat, "partial")
+        model_metrics[idx] = metrics(test_data, yhat, "partial")
         model_maps[idx] = [model.map_approx]
 
     print(points)
