@@ -43,7 +43,7 @@ scores = {}
 
 parent_path = Path("./") / "out" / "h_prophet_1"
 parent_path.mkdir(parents=True, exist_ok=True)
-shrinkage_strengths = [1, 10, 100, 1000, 10000]
+shrinkage_strengths = [1, 10, 100, 1000, 10000, 100000]
 
 for point in pd.date_range(f"{year_start}", f"{year_end}"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
