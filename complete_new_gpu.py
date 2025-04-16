@@ -139,12 +139,8 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         )
     )
 
-    t_scale_params = {
-        "ds_min": train_df_smp["ds"].min(),
-        "ds_max": train_df_smp["ds"].max(),
-    }
-    min_smp_y = train_df_smp["y"].iloc[-91:].min()
-    max_smp_y = train_df_smp["y"].iloc[-91:].max()
+    train_data = pd.concat([train_df_smp, train_df_tickers])
+    test_data = pd.concat([test_df_smp, test_df_tickers])
 
     # test_group, _, test_groups_ = get_group_definition(train_df_tickers, "partial")
     # local_scale = {}
@@ -164,12 +160,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     trace = az.from_netcdf(trace_path)
 
     for idx, model in enumerate(tqdm(models)):
-        model.fit(
-            train_df_tickers,
-            idata=trace,
-            t_scale_params=t_scale_params,
-            progressbar=False,
-        )
+        model.fit(train_data, idata=trace, progressbar=False)
         yhat = model.predict(365)
 
         # for group_code in test_groups_.keys():
@@ -179,7 +170,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         #             yhat[f"yhat_{group_code}"] - min_smp_y
         #         ) / (max_smp_y - min_smp_y) * (max_y - min_y) + min_y
 
-        model_metrics[idx] = metrics(test_df_tickers, yhat, "partial")
+        model_metrics[idx] = metrics(test_data, yhat, "partial")
         model_maps[idx] = [model.map_approx]
 
     print(points)
