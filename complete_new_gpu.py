@@ -68,6 +68,8 @@ pd.DataFrame.from_records(model_params_combined).to_csv(
     parent_path / "model_params.csv"
 )
 
+score_th = 0.3
+
 for point in pd.date_range(f"{year_start}", f"{year_end}"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
     if (parent_path / "model_0" / f"{points}.csv").is_file():
@@ -171,7 +173,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     trace = az.from_netcdf(trace_path)
 
     for idx, model in enumerate(tqdm(models)):
-        if sum(scores[idx]) / len(scores[idx]) > 0.2:
+        if sum(scores[idx]) / len(scores[idx]) > score_th:
             continue
 
         model.fit(train_data, idata=trace, progressbar=False)
@@ -190,7 +192,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     print(points)
 
     for idx, _ in enumerate(models):
-        if sum(scores[idx]) / len(scores[idx]) > 0.2:
+        if sum(scores[idx]) / len(scores[idx]) > score_th:
             continue
 
         csv_path = parent_path / f"model_{idx}"
