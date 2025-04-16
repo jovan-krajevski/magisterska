@@ -41,32 +41,17 @@ print("DATA READY")
 scores = {}
 
 model_params: dict[str, list] = {
-    "trend_loss_factor": [-1, 0, 1],
-    "seasonality_loss_factor": [-1, 0, 1],
-    "tune_trend": ["parametric", "prior_from_idata", None],
-    "tune_seasonality": ["parametric", "prior_from_idata", None],
+    "tune_method": ["parametric", "prior_from_idata"],
+    "shrinkage_strength": [1, 10, 100, 1000, 10000],
 }
 
 model_params_combined = []
 
-for tune_trend in model_params["tune_trend"]:
-    for tune_seasonality in model_params["tune_seasonality"]:
-        for seasonality_loss_factor in (
-            model_params["seasonality_loss_factor"]
-            if tune_seasonality is not None
-            else [0]
-        ):
-            for trend_loss_factor in (
-                model_params["trend_loss_factor"] if tune_trend is not None else [0]
-            ):
-                model_params_combined.append(
-                    {
-                        "seasonality_loss_factor": seasonality_loss_factor,
-                        "trend_loss_factor": trend_loss_factor,
-                        "tune_trend": tune_trend,
-                        "tune_seasonality": tune_seasonality,
-                    }
-                )
+for tune_method in model_params["tune_method"]:
+    for shrinkage_strength in model_params["shrinkage_strength"]:
+        model_params_combined.append(
+            {"tune_method": tune_method, "shrinkage_strength": shrinkage_strength}
+        )
 
 parent_path = Path("./") / "out" / "h_vangja1"
 parent_path.mkdir(parents=True, exist_ok=True)
@@ -116,30 +101,30 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     for params in model_params_combined:
         trend = LinearTrend(
             n_changepoints=25,
-            tune_method=params["tune_trend"],
-            loss_factor_for_tune=params["trend_loss_factor"],
+            tune_method=params["tune_method"],
+            loss_factor_for_tune=1,
             pool_type="partial",
             delta_side="right",
             override_slope_mean_for_tune=slope_mean,
-            shrinkage_strength=100,
+            shrinkage_strength=params["shrinkage_strength"],
         )
         yearly = FourierSeasonality(
             365.25,
             10,
-            tune_method=params["tune_seasonality"],
-            loss_factor_for_tune=params["seasonality_loss_factor"],
+            tune_method=params["tune_method"],
+            loss_factor_for_tune=1,
             pool_type="partial",
             override_beta_mean_for_tune=yearly_mean,
-            shrinkage_strength=100,
+            shrinkage_strength=params["shrinkage_strength"],
         )
         weekly = FourierSeasonality(
             7,
             3,
-            tune_method=params["tune_seasonality"],
-            loss_factor_for_tune=params["seasonality_loss_factor"],
+            tune_method=params["tune_method"],
+            loss_factor_for_tune=1,
             pool_type="partial",
             override_beta_mean_for_tune=weekly_mean,
-            shrinkage_strength=100,
+            shrinkage_strength=params["shrinkage_strength"],
         )
         model = trend * (1 + weekly + yearly)
         models.append(model)
