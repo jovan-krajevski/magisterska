@@ -358,7 +358,7 @@ class LinearTrend(TimeSeriesModel):
             if idata is not None and self.tune_method is not None:
                 pm.Potential(
                     f"{slope_key} - loss",
-                    self.loss_factor_for_tune
+                    -self.loss_factor_for_tune
                     * pm.math.sum(pm.math.sqr(slope - slope_mu)),
                 )
 

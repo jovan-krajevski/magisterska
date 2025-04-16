@@ -41,6 +41,8 @@ print("DATA READY")
 scores = {}
 
 model_params: dict[str, list] = {
+    "loss_factor_trend": [0, 1],
+    "loss_factor_seasonality": [0, 1],
     "tune_method": ["parametric", "prior_from_idata"],
     "shrinkage_strength": [1, 10, 100, 1000, 10000],
 }
@@ -67,7 +69,9 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
             scores[idx].append(
                 pd.read_csv(
                     parent_path / f"model_{idx}" / f"{points}.csv", index_col=0
-                )["mape"].mean()
+                )["mape"]
+                .iloc[:-1]
+                .mean()
             )
             print(f"so far {idx}: {sum(scores[idx]) / len(scores[idx])}")
 
@@ -184,9 +188,9 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         final_maps.to_csv(csv_path / f"{points}_maps.csv")
 
         scores[idx] = scores.get(idx, [])
-        scores[idx].append(final_metrics["mape"].mean())
+        scores[idx].append(final_metrics["mape"].iloc[:-1].mean())
 
-        print(f"{final_metrics['mape'].mean()}")
+        print(f"{scores[idx]}")
         print(f"so far: {sum(scores[idx]) / len(scores[idx])}")
 
     for model in models:
