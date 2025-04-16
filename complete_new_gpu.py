@@ -191,6 +191,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
 
     print(points)
 
+    score_result = []
     for idx, _ in enumerate(models):
         if sum(scores[idx]) / len(scores[idx]) > score_th:
             continue
@@ -204,9 +205,12 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
 
         scores[idx] = scores.get(idx, [])
         scores[idx].append(final_metrics["mape"].iloc[:-1].mean())
+        score_result.append((idx, scores[idx][-1], sum(scores[idx]) / len(scores[idx])))
+        # print(f"{scores[idx][-1]}")
+        # print(f"so far: {sum(scores[idx]) / len(scores[idx])}")
 
-        print(f"{scores[idx][-1]}")
-        print(f"so far: {sum(scores[idx]) / len(scores[idx])}")
+    for idx, score_now, score_so_far in sorted(score_result, key=lambda x: x[2]):
+        print(f"{idx} - {score_now} - {score_so_far}")
 
     for model in models:
         del model
