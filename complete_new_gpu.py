@@ -75,12 +75,12 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     if (parent_path / "model_0" / f"{points}.csv").is_file():
         for idx, _ in enumerate(model_params_combined):
             scores[idx] = scores.get(idx, [])
+            mape_path = parent_path / f"model_{idx}" / f"{points}.csv"
+            if not mape_path.exists():
+                continue
+
             scores[idx].append(
-                pd.read_csv(
-                    parent_path / f"model_{idx}" / f"{points}.csv", index_col=0
-                )["mape"]
-                .iloc[:-1]
-                .mean()
+                pd.read_csv(mape_path, index_col=0)["mape"].iloc[:-1].mean()
             )
             print(f"so far {idx}: {sum(scores[idx]) / len(scores[idx])}")
 
@@ -209,7 +209,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         # print(f"{scores[idx][-1]}")
         # print(f"so far: {sum(scores[idx]) / len(scores[idx])}")
 
-    for idx, score_now, score_so_far in sorted(score_result, key=lambda x: x[2]):
+    for idx, score_now, score_so_far in sorted(score_result, key=lambda x: x[2])[:5]:
         print(f"{idx} - {score_now} - {score_so_far}")
 
     for model in models:
