@@ -49,11 +49,18 @@ model_params: dict[str, list] = {
 
 model_params_combined = []
 
-for tune_method in model_params["tune_method"]:
-    for shrinkage_strength in model_params["shrinkage_strength"]:
-        model_params_combined.append(
-            {"tune_method": tune_method, "shrinkage_strength": shrinkage_strength}
-        )
+for loss_factor_trend in model_params["loss_factor_trend"]:
+    for loss_factor_seasonality in model_params["loss_factor_seasonality"]:
+        for tune_method in model_params["tune_method"]:
+            for shrinkage_strength in model_params["shrinkage_strength"]:
+                model_params_combined.append(
+                    {
+                        "tune_method": tune_method,
+                        "shrinkage_strength": shrinkage_strength,
+                        "loss_factor_trend": loss_factor_trend,
+                        "loss_factor_seasonality": loss_factor_seasonality,
+                    }
+                )
 
 parent_path = Path("./") / "out" / "h_vangja1"
 parent_path.mkdir(parents=True, exist_ok=True)
@@ -106,7 +113,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         trend = LinearTrend(
             n_changepoints=25,
             tune_method=params["tune_method"],
-            loss_factor_for_tune=1,
+            loss_factor_for_tune=params["loss_factor_trend"],
             pool_type="partial",
             delta_side="right",
             override_slope_mean_for_tune=slope_mean,
@@ -116,7 +123,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
             365.25,
             10,
             tune_method=params["tune_method"],
-            loss_factor_for_tune=1,
+            loss_factor_for_tune=params["loss_factor_seasonality"],
             pool_type="partial",
             override_beta_mean_for_tune=yearly_mean,
             shrinkage_strength=params["shrinkage_strength"],
@@ -125,7 +132,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
             7,
             3,
             tune_method=params["tune_method"],
-            loss_factor_for_tune=1,
+            loss_factor_for_tune=params["loss_factor_seasonality"],
             pool_type="partial",
             override_beta_mean_for_tune=weekly_mean,
             shrinkage_strength=params["shrinkage_strength"],
