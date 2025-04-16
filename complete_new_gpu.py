@@ -171,6 +171,9 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     trace = az.from_netcdf(trace_path)
 
     for idx, model in enumerate(tqdm(models)):
+        if sum(scores[idx]) / len(scores[idx]) > 0.2:
+            continue
+
         model.fit(train_data, idata=trace, progressbar=False)
         yhat = model.predict(365)
 
@@ -187,6 +190,9 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     print(points)
 
     for idx, _ in enumerate(models):
+        if sum(scores[idx]) / len(scores[idx]) > 0.2:
+            continue
+
         csv_path = parent_path / f"model_{idx}"
         csv_path.mkdir(parents=True, exist_ok=True)
         final_maps = pd.DataFrame.from_records([model_maps[idx]])
@@ -197,7 +203,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         scores[idx] = scores.get(idx, [])
         scores[idx].append(final_metrics["mape"].iloc[:-1].mean())
 
-        print(f"{scores[idx]}")
+        print(f"{scores[idx][-1]}")
         print(f"so far: {sum(scores[idx]) / len(scores[idx])}")
 
     for model in models:
