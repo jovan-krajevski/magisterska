@@ -74,6 +74,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
             n_changepoints=25,
             tune_method=None,
             pool_type="partial",
+            delta_pool_type="partial",
             delta_side="left",
             shrinkage_strength=shrinkage_strength,
         )

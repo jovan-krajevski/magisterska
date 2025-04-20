@@ -25,6 +25,7 @@ class LinearTrend(TimeSeriesModel):
         delta_sd: float = 0.05,
         delta_side: Literal["left", "right"] = "left",
         pool_type: PoolType = "partial",
+        delta_pool_type: PoolType = "complete",
         tune_method: TuneMethod | None = "parametric",
         override_slope_mean_for_tune: np.ndarray | None = None,
         override_slope_sd_for_tune: np.ndarray | None = None,
@@ -62,6 +63,9 @@ class LinearTrend(TimeSeriesModel):
             at the latest ds.
         pool_type: PoolType
             Type of pooling performed when sampling.
+        delta_pool_type: PoolType
+            Type of pooling performed on the change points when sampling. Only
+            considered when pool_type == "partial".
         tune_method: TuneMethod | None
             How the transfer learning is to be performed. One of "parametric" or
             "prior_from_idata". If set to None, this component will not be tuned even if
@@ -87,6 +91,7 @@ class LinearTrend(TimeSeriesModel):
         self.delta_sd = delta_sd
         self.delta_side = delta_side
         self.pool_type = pool_type
+        self.delta_pool_type = delta_pool_type
 
         self.tune_method = tune_method
         self.override_slope_mean_for_tune = override_slope_mean_for_tune
@@ -329,24 +334,26 @@ class LinearTrend(TimeSeriesModel):
             if self.delta_sd is None:
                 delta_sd = pm.Exponential(f"lt_{self.model_idx} - tau", 1.5)
 
-            # delta_sigma = pm.HalfCauchy(
-            #     f"lt_{self.model_idx} - delta_sigma", beta=delta_sd
-            # )
-            # delta_z_offset = pm.Laplace(
-            #     f"lt_{self.model_idx} - delta_z_offset",
-            #     0,
-            #     1,
-            #     shape=(self.n_groups, self.n_changepoints),
-            # )
-            # delta = pm.Deterministic(
-            #     f"lt_{self.model_idx} - delta", delta_z_offset * delta_sigma
-            # )
-            delta = pm.Laplace(
-                f"lt_{self.model_idx} - delta",
-                self.delta_mean,
-                delta_sd,
-                shape=self.n_changepoints,
-            )
+            if self.delta_pool_type == "partial":
+                delta_sigma = pm.HalfCauchy(
+                    f"lt_{self.model_idx} - delta_sigma", beta=delta_sd
+                )
+                delta_z_offset = pm.Laplace(
+                    f"lt_{self.model_idx} - delta_z_offset",
+                    0,
+                    1,
+                    shape=(self.n_groups, self.n_changepoints),
+                )
+                delta = pm.Deterministic(
+                    f"lt_{self.model_idx} - delta", delta_z_offset * delta_sigma
+                )
+            else:
+                delta = pm.Laplace(
+                    f"lt_{self.model_idx} - delta",
+                    self.delta_mean,
+                    delta_sd,
+                    shape=self.n_changepoints,
+                )
 
             intercept = pm.Normal(
                 f"lt_{self.model_idx} - intercept",
