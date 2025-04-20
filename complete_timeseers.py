@@ -76,7 +76,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
             pool_type="partial",
             delta_pool_type="partial",
             delta_side="left",
-            shrinkage_strength=shrinkage_strength,
+            shrinkage_strength=1,
         )
         yearly = FourierSeasonality(
             365.25,
