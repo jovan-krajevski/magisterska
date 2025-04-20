@@ -347,6 +347,13 @@ class LinearTrend(TimeSeriesModel):
                 delta = pm.Deterministic(
                     f"lt_{self.model_idx} - delta", delta_z_offset * delta_sigma
                 )
+            elif self.delta_pool_type == "individual":
+                delta = pm.Laplace(
+                    f"lt_{self.model_idx} - delta",
+                    self.delta_mean,
+                    delta_sd,
+                    shape=(self.n_groups, self.n_changepoints),
+                )
             else:
                 delta = pm.Laplace(
                     f"lt_{self.model_idx} - delta",
@@ -368,6 +375,9 @@ class LinearTrend(TimeSeriesModel):
                     -self.loss_factor_for_tune
                     * pm.math.sum(pm.math.sqr(slope - slope_mu)),
                 )
+
+            if self.delta_pool_type in ["partial", "individual"]:
+                delta = delta[self.group]
 
             gamma = -self.s * delta
 
@@ -551,7 +561,10 @@ class LinearTrend(TimeSeriesModel):
                     new_A = (np.array(future["t"])[:, None] <= self.s) * 1
 
                 delta = map_approx[f"lt_{self.model_idx} - delta"]
-                if self.pool_type == "individual":
+                if self.pool_type == "individual" or (
+                    self.pool_type == "partial"
+                    and self.delta_pool_type in ["partial", "individual"]
+                ):
                     delta = delta[group_code]
 
                 slope_correction = new_A @ delta
