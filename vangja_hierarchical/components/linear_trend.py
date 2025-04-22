@@ -406,7 +406,7 @@ class LinearTrend(TimeSeriesModel):
                         priors[f"prior_{delta_key}"],
                     )
                     delta_sigma = pm.HalfCauchy(
-                        f"lt_{self.model_idx} - slope_sigma",
+                        f"lt_{self.model_idx} - delta_sigma",
                         beta=delta_scale / self.shrinkage_strength,
                     )
                 else:
