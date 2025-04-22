@@ -166,7 +166,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         if idx in scores and sum(scores[idx]) / len(scores[idx]) > score_th:
             continue
 
-        model.fit(train_data, idata=trace, progressbar=True)
+        model.fit(train_data, idata=trace, progressbar=False)
         yhat = model.predict(365)
 
         model_metrics[idx] = metrics(test_data, yhat, "partial")
