@@ -54,7 +54,9 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
                 pd.read_csv(
                     parent_path / f"model_{idx}" / f"{points}.csv",
                     index_col=0,
-                )["mape"].mean()
+                )["mape"]
+                .iloc[:-1]
+                .mean()
             )
             print(f"so far {idx}: {sum(scores[idx]) / len(scores[idx])}")
 

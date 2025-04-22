@@ -24,11 +24,14 @@ class LinearTrend(TimeSeriesModel):
         delta_mean: float = 0,
         delta_sd: float = 0.05,
         delta_side: Literal["left", "right"] = "left",
-        pool_type: PoolType = "partial",
+        pool_type: PoolType = "complete",
         delta_pool_type: PoolType = "complete",
-        tune_method: TuneMethod | None = "parametric",
+        tune_method: TuneMethod | None = None,
+        delta_tune_method: TuneMethod | None = None,
         override_slope_mean_for_tune: np.ndarray | None = None,
         override_slope_sd_for_tune: np.ndarray | None = None,
+        override_delta_loc_for_tune: np.ndarray | None = None,
+        override_delta_scale_for_tune: np.ndarray | None = None,
         shrinkage_strength: float = 100,
         loss_factor_for_tune: float = 0,
     ):
@@ -70,12 +73,23 @@ class LinearTrend(TimeSeriesModel):
             How the transfer learning is to be performed. One of "parametric" or
             "prior_from_idata". If set to None, this component will not be tuned even if
             idata is provided.
+        delta_tune_method: TuneMethod | None
+            How the transfer learning for the change points is to be performed. One of
+            "parametric" or "prior_from_idata". If set to None, change points will not
+            be tuned even if idata is provided. Only considered when tune_method is not
+            None.
         override_slope_mean_for_tune: np.ndarray | None
             Override the mean of the Normal prior for the slope parameter with this
             value.
         override_slope_sd_for_tune: np.ndarray | None
             Override the standard deviation of the Normal prior for the slope parameter
             with this value.
+        override_delta_loc_for_tune: np.ndarray | None
+            Override the loc of the Laplace prior for the change points parameter with
+            this value.
+        override_delta_scale_for_tune: np.ndarray | None
+            Override the scale of the Laplace prior for the change points parameter with
+            this value.
         shrinkage_strength: float
             Shrinkage between groups for the hierarchical modeling.
         loss_factor_for_tune: float
@@ -94,8 +108,11 @@ class LinearTrend(TimeSeriesModel):
         self.delta_pool_type = delta_pool_type
 
         self.tune_method = tune_method
+        self.delta_tune_method = delta_tune_method
         self.override_slope_mean_for_tune = override_slope_mean_for_tune
         self.override_slope_sd_for_tune = override_slope_sd_for_tune
+        self.override_delta_loc_for_tune = override_delta_loc_for_tune
+        self.override_delta_scale_for_tune = override_delta_scale_for_tune
         self.shrinkage_strength = shrinkage_strength
         self.loss_factor_for_tune = loss_factor_for_tune
 
@@ -109,7 +126,6 @@ class LinearTrend(TimeSeriesModel):
         idata: az.InferenceData
             Sample from a posterior.
         """
-
         slope_key = f"lt_{self.model_idx} - slope"
         delta_key = f"lt_{self.model_idx} - delta"
 
@@ -133,6 +149,32 @@ class LinearTrend(TimeSeriesModel):
             slope_sd = (idata["posterior"][slope_key].to_numpy() + delta).std()
 
         return slope_mean, slope_sd
+
+    def _get_delta_params_from_idata(self, idata: az.InferenceData):
+        """
+        Calculate the mean and the standard deviation of the Laplace prior for the
+        change points parameter from a provided posterior sample.
+
+        Parameters
+        ----------
+        idata: az.InferenceData
+            Sample from a posterior.
+        """
+        delta_key = f"lt_{self.model_idx} - delta"
+
+        delta = idata["posterior"][delta_key].to_numpy()
+
+        if self.override_delta_loc_for_tune is not None:
+            delta_loc = self.override_delta_loc_for_tune
+        else:
+            delta_loc = delta.mean(axis=(0, 1))
+
+        if self.override_delta_scale_for_tune is not None:
+            delta_scale = self.override_delta_scale_for_tune
+        else:
+            delta_scale = delta.std(axis=(0, 1)) / (2**0.5)
+
+        return delta_loc, delta_scale
 
     def _get_skipped_deltas(self, data: pd.DataFrame, idata: az.InferenceData):
         """
@@ -212,16 +254,27 @@ class LinearTrend(TimeSeriesModel):
             )
 
             if self.n_changepoints > 0:
-                delta_sd = self.delta_sd
-                if self.delta_sd is None:
-                    delta_sd = pm.Exponential(f"lt_{self.model_idx} - tau", 1.5)
+                delta_key = f"lt_{self.model_idx} - delta"
+                if idata is not None and self.delta_tune_method == "parametric":
+                    delta_loc, delta_scale = self._get_delta_params_from_idata(idata)
+                    delta = pm.Laplace(
+                        delta_key, delta_loc, delta_scale, shape=self.n_changepoints
+                    )
+                elif priors is not None and self.tune_method == "prior_from_idata":
+                    delta_loc, delta_scale = self._get_delta_params_from_idata(idata)
+                    delta = pm.Deterministic(delta_key, priors[f"prior_{delta_key}"])
+                else:
+                    delta_sd = self.delta_sd
+                    if self.delta_sd is None:
+                        delta_sd = pm.Exponential(f"lt_{self.model_idx} - tau", 1.5)
 
-                delta = pm.Laplace(
-                    f"lt_{self.model_idx} - delta",
-                    self.delta_mean,
-                    delta_sd,
-                    shape=self.n_changepoints,
-                )
+                    delta = pm.Laplace(
+                        f"lt_{self.model_idx} - delta",
+                        self.delta_mean,
+                        delta_sd,
+                        shape=self.n_changepoints,
+                    )
+
                 hist_size = int(np.floor(data.shape[0] * self.changepoint_range))
                 cp_indexes = (
                     np.linspace(0, hist_size - 1, self.n_changepoints + 1)
@@ -277,6 +330,7 @@ class LinearTrend(TimeSeriesModel):
         """
         with model:
             slope_key = f"lt_{self.model_idx} - slope"
+            delta_key = f"lt_{self.model_idx} - delta"
             t = np.array(data["t"])
 
             # calculate change points on first time series
@@ -335,9 +389,31 @@ class LinearTrend(TimeSeriesModel):
                 delta_sd = pm.Exponential(f"lt_{self.model_idx} - tau", 1.5)
 
             if self.delta_pool_type == "partial":
-                delta_sigma = pm.HalfCauchy(
-                    f"lt_{self.model_idx} - delta_sigma", beta=delta_sd
-                )
+                delta_shared = 0
+                if idata is not None and self.tune_method == "parametric":
+                    delta_loc, delta_scale = self._get_delta_params_from_idata(idata)
+                    delta_shared = pm.Normal(
+                        f"lt_{self.model_idx} - delta_shared", delta_loc, delta_scale
+                    )
+                    delta_sigma = pm.HalfCauchy(
+                        f"lt_{self.model_idx} - delta_sigma",
+                        beta=delta_scale / self.shrinkage_strength,
+                    )
+                elif priors is not None and self.tune_method == "prior_from_idata":
+                    delta_loc, delta_scale = self._get_delta_params_from_idata(idata)
+                    delta_shared = pm.Deterministic(
+                        f"lt_{self.model_idx} - delta_shared",
+                        priors[f"prior_{delta_key}"],
+                    )
+                    delta_sigma = pm.HalfCauchy(
+                        f"lt_{self.model_idx} - slope_sigma",
+                        beta=delta_scale / self.shrinkage_strength,
+                    )
+                else:
+                    delta_sigma = pm.HalfCauchy(
+                        f"lt_{self.model_idx} - delta_sigma", beta=delta_sd
+                    )
+
                 delta_z_offset = pm.Laplace(
                     f"lt_{self.model_idx} - delta_z_offset",
                     0,
@@ -345,22 +421,40 @@ class LinearTrend(TimeSeriesModel):
                     shape=(self.n_groups, self.n_changepoints),
                 )
                 delta = pm.Deterministic(
-                    f"lt_{self.model_idx} - delta", delta_z_offset * delta_sigma
+                    delta_key, delta_shared + delta_z_offset * delta_sigma
                 )
             elif self.delta_pool_type == "individual":
-                delta = pm.Laplace(
-                    f"lt_{self.model_idx} - delta",
-                    self.delta_mean,
-                    delta_sd,
-                    shape=(self.n_groups, self.n_changepoints),
-                )
+                if idata is not None and self.tune_method == "parametric":
+                    delta_loc, delta_scale = self._get_delta_params_from_idata(idata)
+                    delta = pm.Laplace(
+                        delta_key,
+                        delta_loc,
+                        delta_scale,
+                        shape=(self.n_groups, self.n_changepoints),
+                    )
+                elif priors is not None and self.tune_method == "prior_from_idata":
+                    delta_loc, delta_scale = self._get_delta_params_from_idata(idata)
+                    delta = pm.Deterministic(delta_key, priors[f"prior_{delta_key}"])
+                else:
+                    delta = pm.Laplace(
+                        delta_key,
+                        self.delta_mean,
+                        delta_sd,
+                        shape=(self.n_groups, self.n_changepoints),
+                    )
             else:
-                delta = pm.Laplace(
-                    f"lt_{self.model_idx} - delta",
-                    self.delta_mean,
-                    delta_sd,
-                    shape=self.n_changepoints,
-                )
+                if idata is not None and self.tune_method == "parametric":
+                    delta_loc, delta_scale = self._get_delta_params_from_idata(idata)
+                    delta = pm.Laplace(
+                        delta_key, delta_loc, delta_scale, shape=self.n_changepoints
+                    )
+                elif priors is not None and self.tune_method == "prior_from_idata":
+                    delta_loc, delta_scale = self._get_delta_params_from_idata(idata)
+                    delta = pm.Deterministic(delta_key, priors[f"prior_{delta_key}"])
+                else:
+                    delta = pm.Laplace(
+                        delta_key, self.delta_mean, delta_sd, shape=self.n_changepoints
+                    )
 
             intercept = pm.Normal(
                 f"lt_{self.model_idx} - intercept",
