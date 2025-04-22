@@ -176,7 +176,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
 
     score_result = []
     for idx, _ in enumerate(models):
-        if sum(scores[idx]) / len(scores[idx]) > score_th:
+        if idx in scores and sum(scores[idx]) / len(scores[idx]) > score_th:
             continue
 
         csv_path = parent_path / f"model_{idx}"
