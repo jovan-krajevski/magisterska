@@ -43,28 +43,26 @@ scores = {}
 model_params: dict[str, list] = {
     "trend_loss_factor": [-1, 0, 1],
     "seasonality_loss_factor": [-1, 0, 1],
-    "tune_trend": ["parametric", None],
-    "tune_weekly": ["parametric", None],
+    "trend_tune_method": ["parametric", "prior_from_idata"],
+    "seasonality_tune_method": ["parametric", "prior_from_idata"],
 }
 
 model_params_combined = []
 
-for tune_trend in model_params["tune_trend"]:
-    for tune_weekly in model_params["tune_weekly"]:
+for trend_tune_method in model_params["trend_tune_method"]:
+    for seasonality_tune_method in model_params["seasonality_tune_method"]:
         for seasonality_loss_factor in model_params["seasonality_loss_factor"]:
-            for trend_loss_factor in (
-                model_params["trend_loss_factor"] if tune_trend is not None else [0]
-            ):
+            for trend_loss_factor in model_params["trend_loss_factor"]:
                 model_params_combined.append(
                     {
                         "seasonality_loss_factor": seasonality_loss_factor,
                         "trend_loss_factor": trend_loss_factor,
-                        "tune_trend": tune_trend,
-                        "tune_weekly": tune_weekly,
+                        "trend_tune_method": trend_tune_method,
+                        "seasonality_tune_method": seasonality_tune_method,
                     }
                 )
 
-parent_path = Path("./") / "out" / "vangja4"
+parent_path = Path("./") / "out" / "vangja5"
 parent_path.mkdir(parents=True, exist_ok=True)
 pd.DataFrame.from_records(model_params_combined).to_csv(
     parent_path / "model_params.csv"
@@ -112,7 +110,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
     for params in model_params_combined:
         trend = LinearTrend(
             n_changepoints=0,
-            tune_method=params["tune_trend"],
+            tune_method=params["trend_tune_method"],
             loss_factor_for_tune=params["trend_loss_factor"],
             pool_type="individual",
             delta_side="right",
@@ -121,7 +119,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         yearly = FourierSeasonality(
             365.25,
             10,
-            tune_method="parametric",
+            tune_method=params["seasonality_tune_method"],
             loss_factor_for_tune=params["seasonality_loss_factor"],
             pool_type="individual",
             override_beta_mean_for_tune=yearly_mean,
@@ -129,7 +127,7 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         weekly = FourierSeasonality(
             7,
             3,
-            tune_method=params["tune_weekly"],
+            tune_method=params["seasonality_tune_method"],
             loss_factor_for_tune=params["seasonality_loss_factor"],
             pool_type="individual",
             override_beta_mean_for_tune=weekly_mean,
@@ -151,22 +149,6 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
         "ds_min": train_df_smp["ds"].min(),
         "ds_max": train_df_smp["ds"].max(),
     }
-    min_smp_y = train_df_smp["y"].iloc[-91:].min()
-    max_smp_y = train_df_smp["y"].iloc[-91:].max()
-
-    # test_group, _, test_groups_ = get_group_definition(train_df_tickers, "partial")
-    # local_scale = {}
-    # for group_code, group_name in test_groups_.items():
-    #     series = train_df_tickers[train_df_tickers["series"] == group_name]
-    #     min_y = series["y"].min()
-    #     max_y = series["y"].max()
-    #     if max_y > min_y:
-    #         train_df_tickers.loc[train_df_tickers["series"] == group_name, "y"] = (
-    #             train_df_tickers.loc[train_df_tickers["series"] == group_name, "y"]
-    #             - min_y
-    #         ) / (max_y - min_y) * (max_smp_y - min_smp_y) + min_smp_y
-
-    #     local_scale[group_code] = (min_y, max_y)
 
     trace_path = Path("./") / "models" / "simple_advi" / f"{points}" / "trace.nc"
     trace = az.from_netcdf(trace_path)
@@ -179,14 +161,6 @@ for point in pd.date_range(f"{year_start}", f"{year_end}"):
             progressbar=False,
         )
         yhat = model.predict(365)
-
-        # for group_code in test_groups_.keys():
-        #     min_y, max_y = local_scale[group_code]
-        #     if max_y > min_y:
-        #         yhat[f"yhat_{group_code}"] = (
-        #             yhat[f"yhat_{group_code}"] - min_smp_y
-        #         ) / (max_smp_y - min_smp_y) * (max_y - min_y) + min_y
-
         model_metrics[idx] = metrics(test_df_tickers, yhat, "partial")
         model_maps[idx] = [model.map_approx]
 
