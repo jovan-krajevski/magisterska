@@ -129,7 +129,7 @@ test_data = pd.concat([test_df_smp, test_df_tickers])
 trace_path = Path("./") / "models" / "simple_advi" / f"{points}" / "trace.nc"
 trace = az.from_netcdf(trace_path)
 
-model.fit(train_data, idata=trace, progressbar=False)
+model.fit(train_data, idata=trace)
 yhat = model.predict(365)
 model_metrics = metrics(test_data, yhat, "partial").sort_index()
 
