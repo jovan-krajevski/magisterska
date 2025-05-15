@@ -25,7 +25,7 @@ parser.add_argument("-p", "--point")
 parser.add_argument("-m", "--model")
 
 args = parser.parse_args()
-point = args.point
+points = args.point
 model_idx = int(args.model)
 
 print("START")
@@ -59,8 +59,6 @@ for loss_factor_trend in model_params["loss_factor_trend"]:
                         "loss_factor_seasonality": loss_factor_seasonality,
                     }
                 )
-
-points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
 
 train_df_smp, test_df_smp, scales_smp = generate_train_test_df_around_point(
     window=365 * 40, horizon=365, dfs=smp, for_prophet=False, point=points
