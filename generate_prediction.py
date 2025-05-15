@@ -11,7 +11,7 @@ from vangja.data_utils import (
     process_data,
 )
 from vangja_hierarchical.components import FourierSeasonality, LinearTrend
-from vangja_hierarchical.utils import metrics
+from vangja_hierarchical.utils import get_group_definition, metrics
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
@@ -23,10 +23,12 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument("-p", "--point")
 parser.add_argument("-m", "--model")
+parser.add_argument("-t", "--ticker")
 
 args = parser.parse_args()
 points = args.point
 model_idx = int(args.model)
+ticker = args.ticker
 
 print("START")
 
@@ -133,5 +135,13 @@ model.fit(train_data, idata=trace)
 yhat = model.predict(365)
 model_metrics = metrics(test_data, yhat, "partial").sort_index()
 
-yhat.to_csv("predictions.csv")
+test_group, _, test_groups_ = get_group_definition(test_data, "partial")
+for group_code, group_name in test_groups_.items():
+    if group_name != ticker:
+        continue
+
+    group_idx = test_group == group_code
+    yhat[f"yhat_{group_code}"].to_csv("predictions.csv")
+    break
+
 model_metrics.to_csv("metrics.csv")
