@@ -141,7 +141,7 @@ for group_code, group_name in test_groups_.items():
         continue
 
     group_idx = test_group == group_code
-    yhat[f"yhat_{group_code}"].to_csv("predictions.csv")
+    yhat[f"yhat_{group_code}"][-365:].to_csv("predictions.csv")
     break
 
 model_metrics.to_csv("metrics.csv")
