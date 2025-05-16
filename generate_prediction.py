@@ -68,7 +68,7 @@ for loss_factor_trend in model_params["loss_factor_trend"]:
 for _ in range(20):
     day = randint(1, 28)
     month = randint(1, 12)
-    year = randint(2015, 2026)
+    year = randint(2015, 2016)
     points = f"{year}-{month:02d}-{day:02d}"
 
     train_df_smp, test_df_smp, scales_smp = generate_train_test_df_around_point(
