@@ -149,8 +149,9 @@ for _ in range(20):
     test_group, _, test_groups_ = get_group_definition(test_data, "partial")
     for group_code, group_name in test_groups_.items():
         group_idx = test_group == group_code
-        yhat[f"yhat_{group_code}"][-365:].to_csv(
-            f"predictions/{points}_{group_name}.csv"
-        )
+        if model_metrics.loc[group_name]["mape"] < 0.02:
+            yhat[f"yhat_{group_code}"][-365:].to_csv(
+                f"predictions/{points}_{group_name}.csv"
+            )
 
     # model_metrics.to_csv("metrics.csv")
