@@ -31,7 +31,7 @@ train_df_smp, test_df_smp, scales_smp = generate_train_test_df_around_point(
     window=365 * 40, horizon=365, dfs=smp, for_prophet=False, point=point
 )
 
-model.fit(train_df_smp, mcmc_samples=1000, nuts_sampler="numpyro")
+model.fit(train_df_smp, samples=1000, method="nuts", nuts_sampler="numpyro")
 model.fit_params["trace"].to_netcdf(Path("./") / "models" / "40_y_w.nc")
 yhat = model.predict(365)
 print(model.metrics(test_df_smp, yhat)["mape"].iloc[0])

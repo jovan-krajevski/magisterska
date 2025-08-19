@@ -44,7 +44,7 @@ scores = []
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    parent_path = Path("./") / "out" / "vangja" / "test204"
+    parent_path = Path("./") / "out" / "vangja" / "test_some"
     csv_path = parent_path / f"{points}.csv"
     maps_path = parent_path / f"{points}_maps.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -79,10 +79,10 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
         365.25,
         10,
         allow_tune=True,
-        tune_method="simple",
+        tune_method="prior_from_idata",
         override_beta_mean_for_tune=yearly_mean,
         shift_for_tune=False,
-        shrinkage_strength=10,
+        shrinkage_strength=1,
     )
     weekly = FourierSeasonality(
         7,

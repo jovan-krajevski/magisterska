@@ -1,8 +1,8 @@
 import argparse
-from pathlib import Path
 import gc
-import jax
+from pathlib import Path
 
+import jax
 import pandas as pd
 from tqdm import tqdm
 
@@ -49,7 +49,7 @@ print("DATA READY")
 
 for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
     points = f"{point.year}-{'' if point.month > 9 else '0'}{point.month}-{'' if point.day > 9 else '0'}{point.day}"
-    parent_path = Path("./") / "out" / "vangja" / "test21"
+    parent_path = Path("./") / "out" / "vangja" / "test22"
     csv_path = parent_path / f"{points}.csv"
     maps_path = parent_path / f"{points}_maps.csv"
     if csv_path.is_file():
@@ -91,7 +91,8 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
         tune_method="simple",
         override_beta_mean_for_tune=weekly_mean,
     )
-    model = trend ** (weekly + yearly)
+    constant = NormalConstant(0, 0.33)
+    model = trend ** (weekly + constant * yearly)
     model.load_model(Path("./") / "models" / "advi_40_y_w")
     model.scale_params = {
         **model.scale_params,
@@ -132,5 +133,5 @@ for point in pd.date_range(f"{year_start}-01-01", f"{year_end}-01-01"):
 
     del model
     gc.collect()
-    jax.clear_backends()
+    # jax.clear_backends()
     jax.clear_caches()

@@ -1,18 +1,20 @@
-import jax
 import gc
-from tqdm import tqdm
+import warnings
 from pathlib import Path
+
+import arviz as az
+import jax
+import pandas as pd
+from prophet import Prophet
+from tqdm import tqdm
+
 from vangja.data_utils import (
     download_data,
     generate_train_test_df_around_point,
     process_data,
 )
-import pandas as pd
-from vangja_hierarchical.components import LinearTrend, FourierSeasonality
-import warnings
-import arviz as az
+from vangja_hierarchical.components import FourierSeasonality, LinearTrend
 from vangja_hierarchical.utils import metrics
-from prophet import Prophet
 
 warnings.simplefilter(action="ignore", category=pd.errors.PerformanceWarning)
 
@@ -104,47 +106,44 @@ for shrinkage_strength in [1, 10, 50, 100, 500, 1000]:
             "ds_min": train_smp["ds"].min(),
             "ds_max": train_smp["ds"].max(),
         }
-        # for tune_method in [None, "parametric", "prior_from_idata"]:
-        for tune_method in ["parametric"]:
-            for loss_factor in [-1, 0, 1]:
-                for lt_loss_factor in [-1, 0, 1]:
-                    trend = LinearTrend(
-                        n_changepoints=25,
-                        pool_type="individual",
-                        tune_method=tune_method,
-                        delta_side="right",
-                        # shrinkage_strength=sh,
-                        loss_factor_for_tune=lt_loss_factor,
-                    )
-                    weekly = FourierSeasonality(
-                        period=7,
-                        series_order=3,
-                        pool_type="individual",
-                        tune_method=tune_method,
-                        loss_factor_for_tune=loss_factor,
-                        # shrinkage_strength=sh,
-                    )
-                    yearly = FourierSeasonality(
-                        period=365.25,
-                        series_order=10,
-                        pool_type="individual",
-                        tune_method=tune_method,
-                        loss_factor_for_tune=loss_factor,
-                        # shrinkage_strength=sh,
-                    )
-                    model = trend * (1 + weekly + yearly)
-                    model.fit(
-                        train_df,
-                        idata=trace,
-                        progressbar=True,
-                        t_scale_params=t_scale_params,
-                    )
-                    yhat = model.predict(365)
+        trend = LinearTrend(
+            n_changepoints=25,
+            pool_type="partial",
+            tune_method="prior_from_idata",
+            delta_side="right",
+            shrinkage_strength=100,
+            loss_factor_for_tune=0,
+        )
+        weekly = FourierSeasonality(
+            period=7,
+            series_order=3,
+            pool_type="partial",
+            tune_method="prior_from_idata",
+            loss_factor_for_tune=1,
+            shrinkage_strength=100,
+        )
+        yearly = FourierSeasonality(
+            period=365.25,
+            series_order=10,
+            pool_type="partial",
+            tune_method="prior_from_idata",
+            loss_factor_for_tune=1,
+            shrinkage_strength=100,
+        )
+        model = trend * (1 + weekly + yearly)
+        model.fit(
+            train_data,
+            idata=trace,
+            progressbar=True,
+            t_scale_params=t_scale_params,
+            scale_mode="individual",
+            sigma_pool_type="individual",
+            sigma_shrinkage_strength=100,
+        )
+        yhat = model.predict(365)
 
-                    m = metrics(test_df, yhat, "partial")
-                    print(
-                        f"{m['mape'].mean()} - lf {loss_factor} lt_lf {lt_loss_factor} tm {tune_method}"
-                    )
+        m = metrics(test_data, yhat, "partial")
+        print(f"{m['mape'].mean()}")
 
         breakpoint()
 

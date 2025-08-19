@@ -39,11 +39,11 @@ def plot(train, test, pred, prefix, point, ticker_name):
     plt.legend()
 
     # save plot to file
-    plt.savefig(f"prediction_plots/{prefix}/{point}_{ticker_name}.png")
+    plt.savefig(f"prediction_plots2/{prefix}/{point}_{ticker_name}.png")
 
 
 # Iterate over all files in predictions folder
-predictions_folder = Path("./predictions")
+predictions_folder = Path("./predictions2")
 for file in predictions_folder.iterdir():
     if file.is_file():
         point, ticker_name = file.stem.split("_")
