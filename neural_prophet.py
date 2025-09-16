@@ -1,3 +1,6 @@
+import os
+os.environ['TQDM_DISABLE'] = '1'
+
 import warnings
 from pathlib import Path
 
@@ -108,14 +111,16 @@ for point in date_range:
         n_changepoints=25,
         seasonality_mode="multiplicative",
         n_lags=10,
+        # accelerator="auto", # Enable automatic accelerator selection (GPU if available)
     )
-    forecaster.fit(train_df, freq="D", progress="bar")  # Disable progress bar
+    forecaster.fit(train_df, freq="D", progress=None)  # Disable progress bar
 
     history = train_df.copy()
     final_forecast = []
-    for _ in range(365):
+    for i in range(365):
+        print(f"Processing {points} - Day {i+1}/365", end="\r")
         future = forecaster.make_future_dataframe(history)
-        forecast = forecaster.predict(future)  # Disable decomposition progress
+        forecast = forecaster.predict(future, decompose=False)  # Disable decomposition progress
         forecast = (
             forecast[forecast["yhat1"] > 0][["ds", "ID", "yhat1"]]
             .rename(columns={"yhat1": "y"})
