@@ -113,8 +113,9 @@ for point in date_range:
         daily_seasonality=False,
         n_changepoints=25,
         seasonality_mode="multiplicative",
-        n_lags=5,
+        n_lags=10,
         n_forecasts=N_FORECASTS,
+        trainer_config={"enable_checkpointing": False, "logger": False},
         # epochs=2,
         # accelerator="auto", # Enable automatic accelerator selection (GPU if available)
     )
