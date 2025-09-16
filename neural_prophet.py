@@ -130,7 +130,7 @@ for point in date_range:
         )  # Disable decomposition progress
         forecast["yhat"] = forecast.filter(like="yhat").bfill(axis=1).iloc[:, 0]
         forecast = (
-            forecast[forecast["yhat"] > 0][["ds", "ID", "yhat"]]
+            forecast.dropna(subset=["yhat"])[["ds", "ID", "yhat"]]
             .rename(columns={"yhat": "y"})
             .reset_index(drop=True)
         )
