@@ -1,5 +1,6 @@
 import os
-os.environ['TQDM_DISABLE'] = '1'
+
+os.environ["TQDM_DISABLE"] = "1"
 
 import warnings
 from pathlib import Path
@@ -82,7 +83,7 @@ for point in date_range:
     )
     train_df_tickers, test_df_tickers, scales_tickers = (
         generate_train_test_df_around_point(
-            window=91, horizon=365, dfs=gspc_tickers, point=point
+            window=91, horizon=365, dfs=gspc_tickers, point=points
         )
     )
 
@@ -104,6 +105,8 @@ for point in date_range:
     train_df = pd.concat([train_df_smp, train_df_tickers], ignore_index=True)
     test_df = pd.concat([test_df_smp, test_df_tickers], ignore_index=True)
 
+    N_FORECASTS = 10
+    HORIZON = 365
     forecaster = NeuralProphet(
         yearly_seasonality=True,
         weekly_seasonality=True,
@@ -111,19 +114,24 @@ for point in date_range:
         n_changepoints=25,
         seasonality_mode="multiplicative",
         n_lags=10,
+        n_forecasts=N_FORECASTS,
+        epochs=2,
         # accelerator="auto", # Enable automatic accelerator selection (GPU if available)
     )
     forecaster.fit(train_df, freq="D", progress=None)  # Disable progress bar
 
     history = train_df.copy()
     final_forecast = []
-    for i in range(365):
-        print(f"Processing {points} - Day {i+1}/365", end="\r")
+    for i in range(0, HORIZON, N_FORECASTS):
+        print(f"Processing {points} - Day {i + 1}/{HORIZON}", end="\r")
         future = forecaster.make_future_dataframe(history)
-        forecast = forecaster.predict(future, decompose=False)  # Disable decomposition progress
+        forecast = forecaster.predict(
+            future, decompose=False
+        )  # Disable decomposition progress
+        forecast["yhat"] = forecast.filter(like="yhat").bfill(axis=1).iloc[:, 0]
         forecast = (
-            forecast[forecast["yhat1"] > 0][["ds", "ID", "yhat1"]]
-            .rename(columns={"yhat1": "y"})
+            forecast[forecast["yhat"] > 0][["ds", "ID", "yhat"]]
+            .rename(columns={"yhat": "y"})
             .reset_index(drop=True)
         )
         final_forecast.append(forecast)
@@ -131,24 +139,19 @@ for point in date_range:
 
     final_forecast = pd.concat(final_forecast, ignore_index=True)
     for ticker in test_df["series"].unique():
-        y = final_forecast[final_forecast["ID"] == ticker]["y"]
+        true_y = test_df[test_df["series"] == ticker].iloc[:HORIZON]
+        final_ds = true_y["ds"].iloc[-1]
+        y = final_forecast[final_forecast["ID"] == ticker]
+        y = y[y["ds"] <= final_ds]["y"]
         if ticker != "^GSPC":
             ticker_min_y = min_y[train_df_tickers["ID"] == ticker].iloc[0]
             ticker_max_y = max_y[train_df_tickers["ID"] == ticker].iloc[0]
             if ticker_max_y != ticker_min_y:
-                y = (
-                    final_forecast[final_forecast["ID"] == ticker]["y"] - min_smp_y
-                ) / (max_smp_y - min_smp_y) * (
+                y = (y - min_smp_y) / (max_smp_y - min_smp_y) * (
                     ticker_max_y - ticker_min_y
                 ) + ticker_min_y
 
-        model_metrics.append(
-            metrics(
-                test_df[test_df["series"] == ticker].tail(365),
-                final_forecast[final_forecast["ID"] == ticker]["y"],
-                label=ticker,
-            )
-        )
+        model_metrics.append(metrics(true_y, y, label=ticker))
 
     # Save results
     final_metrics = pd.concat(model_metrics)
