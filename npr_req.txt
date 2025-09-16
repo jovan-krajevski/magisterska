@@ -1,0 +1,4 @@
+scikit-learn==1.6.1
+yfinance==0.2.54
+pytorch==2.5.1
+neuralprophet==0.8.0

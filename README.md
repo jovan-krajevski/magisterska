@@ -53,6 +53,13 @@ sudo apt install build-essential
 conda create -c conda-forge -n pymc_env python=3.12 "pymc>=5.20.1" --file requirements.txt
 ```
 
+For neural prophet:
+
+```sh
+sudo apt install build-essential
+conda create -c conda-forge -n npr python=3.11 --file npr_req.txt
+```
+
 If you want to run sampling on GPU:
 
 ```sh

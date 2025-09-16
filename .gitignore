@@ -157,3 +157,5 @@ data/
 models/test30/
 models/advi_ets/
 models/simple_advi/
+lightning_logs/
+*.ckpt
