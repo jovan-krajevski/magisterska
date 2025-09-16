@@ -108,7 +108,7 @@ for point in date_range:
     N_FORECASTS = 10
     HORIZON = 365
     forecaster = NeuralProphet(
-        yearly_seasonality=True,
+        yearly_seasonality=False,
         weekly_seasonality=True,
         daily_seasonality=False,
         n_changepoints=25,
