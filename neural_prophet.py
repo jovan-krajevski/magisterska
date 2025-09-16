@@ -50,7 +50,7 @@ def metrics(y_true, yhat, label="y"):
 csv_path = Path("./out/neural_prophet_ar")
 
 # Benchmarking NeuralProphet
-date_range = pd.date_range("2016-01-01", "2017-01-01")
+date_range = pd.date_range("2015-01-01", "2017-01-01")
 all_averages = []
 
 for point in date_range:
