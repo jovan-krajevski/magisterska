@@ -115,6 +115,7 @@ for point in date_range:
         seasonality_mode="multiplicative",
         n_lags=10,
         n_forecasts=N_FORECASTS,
+        epochs=2,
         # accelerator="auto", # Enable automatic accelerator selection (GPU if available)
     )
     forecaster.fit(train_df, freq="D", progress=None)  # Disable progress bar
