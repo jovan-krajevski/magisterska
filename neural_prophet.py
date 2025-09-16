@@ -134,6 +134,8 @@ for point in date_range:
             .rename(columns={"yhat": "y"})
             .reset_index(drop=True)
         )
+        # set negative forecasts to 0
+        forecast["y"] = forecast["y"].apply(lambda x: max(x, 0))
         final_forecast.append(forecast)
         history = pd.concat([history, forecast], ignore_index=True)
 
