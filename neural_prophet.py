@@ -108,7 +108,7 @@ for point in date_range:
     N_FORECASTS = 10
     HORIZON = 365
     forecaster = NeuralProphet(
-        yearly_seasonality=False,
+        yearly_seasonality=True,
         weekly_seasonality=True,
         daily_seasonality=False,
         n_changepoints=25,
@@ -119,7 +119,9 @@ for point in date_range:
         # epochs=2,
         # accelerator="auto", # Enable automatic accelerator selection (GPU if available)
     )
-    forecaster.fit(train_df, freq="D", progress=None)  # Disable progress bar
+    forecaster.fit(
+        train_df, freq="D", progress=None, minimal=True
+    )  # Disable progress bar
 
     history = train_df.copy()
     final_forecast = []
@@ -127,7 +129,7 @@ for point in date_range:
         print(f"Processing {points} - Day {i + 1}/{HORIZON}", end="\r")
         future = forecaster.make_future_dataframe(history)
         forecast = forecaster.predict(
-            future, decompose=False
+            future, decompose=True
         )  # Disable decomposition progress
         forecast["yhat"] = forecast.filter(like="yhat").bfill(axis=1).iloc[:, 0]
         forecast = (
