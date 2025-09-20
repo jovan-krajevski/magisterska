@@ -47,7 +47,7 @@ def metrics(y_true, yhat, label="y"):
 
 
 # Directory to save results
-csv_path = Path("./out/neural_prophet_ar")
+csv_path = Path("./out/neural_prophet_ar_hp")
 
 # Benchmarking NeuralProphet
 date_range = pd.date_range("2015-01-01", "2017-01-01")
@@ -90,17 +90,17 @@ for point in date_range:
     train_df_tickers = train_df_tickers.rename(columns={"series": "ID"})
     train_df_smp = train_df_smp.rename(columns={"series": "ID"})
 
-    min_smp_y = train_df_smp["y"].iloc[-91:].min()
-    max_smp_y = train_df_smp["y"].iloc[-91:].max()
+    # min_smp_y = train_df_smp["y"].iloc[-91:].min()
+    # max_smp_y = train_df_smp["y"].iloc[-91:].max()
 
-    min_y = train_df_tickers.groupby("ID")["y"].transform("min")
-    max_y = train_df_tickers.groupby("ID")["y"].transform("max")
-    denom = max_y - min_y
-    train_df_tickers["y"] = np.where(
-        denom == 0,
-        train_df_tickers["y"],
-        (train_df_tickers["y"] - min_y) / denom * (max_smp_y - min_smp_y) + min_smp_y,
-    )
+    # min_y = train_df_tickers.groupby("ID")["y"].transform("min")
+    # max_y = train_df_tickers.groupby("ID")["y"].transform("max")
+    # denom = max_y - min_y
+    # train_df_tickers["y"] = np.where(
+    #     denom == 0,
+    #     train_df_tickers["y"],
+    #     (train_df_tickers["y"] - min_y) / denom * (max_smp_y - min_smp_y) + min_smp_y,
+    # )
 
     train_df = pd.concat([train_df_smp, train_df_tickers], ignore_index=True)
     test_df = pd.concat([test_df_smp, test_df_tickers], ignore_index=True)
@@ -113,9 +113,15 @@ for point in date_range:
         daily_seasonality=False,
         n_changepoints=25,
         seasonality_mode="multiplicative",
-        n_lags=10,
         n_forecasts=N_FORECASTS,
         trainer_config={"enable_checkpointing": False, "logger": False},
+        # params
+        n_lags=20,
+        loss_func="SmoothL1Loss",
+        learning_rate=10,
+        trend_reg=10,
+        seasonality_reg=0.5,
+        ar_reg=0.1,
         # epochs=2,
         # accelerator="auto", # Enable automatic accelerator selection (GPU if available)
     )
@@ -148,13 +154,13 @@ for point in date_range:
         final_ds = true_y["ds"].iloc[-1]
         y = final_forecast[final_forecast["ID"] == ticker]
         y = y[y["ds"] <= final_ds]["y"]
-        if ticker != "^GSPC":
-            ticker_min_y = min_y[train_df_tickers["ID"] == ticker].iloc[0]
-            ticker_max_y = max_y[train_df_tickers["ID"] == ticker].iloc[0]
-            if ticker_max_y != ticker_min_y:
-                y = (y - min_smp_y) / (max_smp_y - min_smp_y) * (
-                    ticker_max_y - ticker_min_y
-                ) + ticker_min_y
+        # if ticker != "^GSPC":
+        #     ticker_min_y = min_y[train_df_tickers["ID"] == ticker].iloc[0]
+        #     ticker_max_y = max_y[train_df_tickers["ID"] == ticker].iloc[0]
+        #     if ticker_max_y != ticker_min_y:
+        #         y = (y - min_smp_y) / (max_smp_y - min_smp_y) * (
+        #             ticker_max_y - ticker_min_y
+        #         ) + ticker_min_y
 
         model_metrics.append(metrics(true_y, y, label=ticker))
 
