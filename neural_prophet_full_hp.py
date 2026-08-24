@@ -87,17 +87,31 @@ for n_lags, loss, lr, trend_reg, seasonality_reg, ar_reg in params:
     )
 
     model_metrics = []
-    train_df_smp, test_df_smp, scales_smp = generate_train_test_df_around_point(
-        window=365 * 40, horizon=365, dfs=smp, for_prophet=False, point=points
+    train_df_smp, val_df_smp, scales_smp = generate_train_test_df_around_point(
+        window=365 * 40,
+        horizon=3 * N_FORECASTS,
+        dfs=smp,
+        for_prophet=False,
+        point=points,
     )
-    train_df_tickers, test_df_tickers, scales_tickers = (
+    train_df_tickers, val_df_tickers, scales_tickers = (
         generate_train_test_df_around_point(
-            window=91, horizon=365, dfs=gspc_tickers, point=points
+            window=91, horizon=3 * N_FORECASTS, dfs=gspc_tickers, point=points
         )
+    )
+
+    _, test_df_smp, scales_smp = generate_train_test_df_around_point(
+        window=365 * 40, horizon=HORIZON, dfs=smp, for_prophet=False, point=points
+    )
+    _, test_df_tickers, scales_tickers = generate_train_test_df_around_point(
+        window=91, horizon=HORIZON, dfs=gspc_tickers, point=points
     )
 
     train_df_tickers = train_df_tickers.rename(columns={"series": "ID"})
     train_df_smp = train_df_smp.rename(columns={"series": "ID"})
+
+    val_df_tickers = val_df_tickers.rename(columns={"series": "ID"})
+    val_df_smp = val_df_smp.rename(columns={"series": "ID"})
 
     # min_smp_y = train_df_smp["y"].iloc[-91:].min()
     # max_smp_y = train_df_smp["y"].iloc[-91:].max()
@@ -112,6 +126,7 @@ for n_lags, loss, lr, trend_reg, seasonality_reg, ar_reg in params:
     # )
 
     train_df = pd.concat([train_df_smp, train_df_tickers], ignore_index=True)
+    val_df = pd.concat([val_df_smp, val_df_tickers], ignore_index=True)
     test_df = pd.concat([test_df_smp, test_df_tickers], ignore_index=True)
 
     forecaster.fit(

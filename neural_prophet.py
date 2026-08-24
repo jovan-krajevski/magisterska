@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from neuralprophet import NeuralProphet, set_log_level
+from neuralprophet import NeuralProphet, set_log_level, set_random_seed
 from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
@@ -79,16 +79,25 @@ for point in date_range:
 
     model_metrics = []
     train_df_smp, test_df_smp, scales_smp = generate_train_test_df_around_point(
-        window=365 * 40, horizon=365, dfs=smp, for_prophet=False, point=points
+        window=365 * 2, horizon=365, dfs=smp, for_prophet=False, point=points
     )
     train_df_tickers, test_df_tickers, scales_tickers = (
         generate_train_test_df_around_point(
             window=91, horizon=365, dfs=gspc_tickers, point=points
         )
     )
+    _, test_df_smp, scales_smp = generate_train_test_df_around_point(
+        window=365 * 40, horizon=HORIZON, dfs=smp, for_prophet=False, point=points
+    )
+    _, test_df_tickers, scales_tickers = generate_train_test_df_around_point(
+        window=91, horizon=HORIZON, dfs=gspc_tickers, point=points
+    )
 
     train_df_tickers = train_df_tickers.rename(columns={"series": "ID"})
     train_df_smp = train_df_smp.rename(columns={"series": "ID"})
+
+    val_df_tickers = val_df_tickers.rename(columns={"series": "ID"})
+    val_df_smp = val_df_smp.rename(columns={"series": "ID"})
 
     # min_smp_y = train_df_smp["y"].iloc[-91:].min()
     # max_smp_y = train_df_smp["y"].iloc[-91:].max()
@@ -103,6 +112,7 @@ for point in date_range:
     # )
 
     train_df = pd.concat([train_df_smp, train_df_tickers], ignore_index=True)
+    val_df = pd.concat([val_df_smp, val_df_tickers], ignore_index=True)
     test_df = pd.concat([test_df_smp, test_df_tickers], ignore_index=True)
 
     N_FORECASTS = 10
@@ -116,17 +126,23 @@ for point in date_range:
         n_forecasts=N_FORECASTS,
         trainer_config={"enable_checkpointing": False, "logger": False},
         # params
-        n_lags=20,
+        n_lags=3,
         loss_func="SmoothL1Loss",
-        learning_rate=10,
-        trend_reg=10,
-        seasonality_reg=0.5,
-        ar_reg=0.1,
+        # learning_rate=0.001,
+        # trend_reg=10,
+        # seasonality_reg=0.5,
+        # ar_reg=0.1,
         # epochs=2,
         # accelerator="auto", # Enable automatic accelerator selection (GPU if available)
     )
+    set_random_seed(0)  # For reproducibility
     forecaster.fit(
-        train_df, freq="D", progress=None, minimal=True
+        train_df,
+        freq="D",
+        progress=None,
+        minimal=True,
+        validation_df=val_df,
+        early_stopping=True,
     )  # Disable progress bar
 
     history = train_df.copy()
